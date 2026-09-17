@@ -178,15 +178,17 @@
     <div class="card">
       <h2>Secções da escala</h2>
       <p class="small">Ordem de cima para baixo tal como aparece na escala em papel. "Tarde" e as linhas de
-        seguimento (Folga / Banco-S-CS-Férias) são tratadas à parte e não precisam de ser adicionadas aqui.</p>
+        seguimento (Banco/S/CS/Férias/SU) são tratadas à parte e não precisam de ser adicionadas aqui.</p>
       <div class="row" style="margin-bottom:10px">
         <label>Nome da secção <input type="text" id="newSectionName" placeholder="Ex: Hemoculturas"/></label>
         <button class="btn" onclick="addSection()">+ Adicionar secção</button>
       </div>
+      <div style="overflow-x:auto">
       <table id="sectionTable">
-        <thead><tr><th>#</th><th>Secção</th><th>Duração da área</th><th class="center" title="Sem dono fixo — só atribuída se sobrar alguém elegível e disponível no dia, sem gerar aviso se ficar vazia">Oportunista</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Secção</th><th>Código</th><th>Duração da área</th><th class="center" title="Sem dono fixo — só atribuída se sobrar alguém elegível e disponível no dia, sem gerar aviso se ficar vazia">Oportunista</th><th>Prioritários</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
+      </div>
     </div>
   </section>
 
@@ -221,11 +223,17 @@
         <label>Funcionário <select id="erEmp"></select></label>
         <label>Início <input type="date" id="erStart"/></label>
         <label>Fim <input type="date" id="erEnd"/></label>
+        <label>Turno
+          <select id="erShift">
+            <option value="D">Dia</option>
+            <option value="N">Noite</option>
+          </select>
+        </label>
         <label>Nota <input type="text" id="erNote" placeholder="Opcional"/></label>
         <button class="btn" onclick="addErBusy()">+ Adicionar</button>
       </div>
       <table id="erTable">
-        <thead><tr><th>Funcionário</th><th>Início</th><th>Fim</th><th>Nota</th><th></th></tr></thead>
+        <thead><tr><th>Funcionário</th><th>Início</th><th>Fim</th><th>Turno</th><th>Nota</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -249,19 +257,6 @@
       </div>
       <table id="vacTable">
         <thead><tr><th>Funcionário</th><th>Tipo</th><th>Início</th><th>Fim</th><th>Nota</th><th></th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-    <div class="card">
-      <h2>Folgas isoladas</h2>
-      <div class="row" style="margin-bottom:10px">
-        <label>Funcionário <select id="folgaEmp"></select></label>
-        <label>Data <input type="date" id="folgaDate"/></label>
-        <label>Nota <input type="text" id="folgaNote" placeholder="Opcional"/></label>
-        <button class="btn" onclick="addFolga()">+ Adicionar</button>
-      </div>
-      <table id="folgaTable">
-        <thead><tr><th>Funcionário</th><th>Data</th><th>Nota</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -341,7 +336,7 @@
    Aplicação Web em ficheiro único, no mesmo espírito do "scheduler" (ER).
    Em vez de gerar cobertura por turno, atribui uma pessoa por secção/dia,
    com equidade numa janela deslizante (~2 semanas úteis) e respeitando
-   indisponibilidades vindas do SU (turnos ER), férias e folgas.
+   indisponibilidades vindas do SU (turnos ER) e férias/banco/consulta/baixa.
    ========================================================================= */
 
 const LS_KEY = 'escala_micro_v1';
@@ -361,22 +356,24 @@ const PT_HOLIDAYS_FIXED = [
 ];
 
 // blockDays: nulo = usa a duração de bloco global; opportunistic: sem dono fixo, só
-// atribuída quando sobra alguém elegível e disponível nesse dia (sem gerar aviso se vazia).
+// atribuída quando sobra alguém elegível e disponível nesse dia (sem gerar aviso se vazia);
+// code: sigla usada como legenda em Funcionários/Secções.
 const DEFAULT_SECTIONS = [
-  {name:'Hemoculturas'},
-  {name:'Exsud. purulentos / Protoc. / Queimados'},
-  {name:'Anaeróbios / Micologia', blockDays:7},
-  {name:'Inf. Respiratórias'},
-  {name:'Urinas'},
-  {name:'Exs. Vaginais / Uretrais'},
-  {name:'Coproculturas'},
-  {name:'Ex. Parasitológicos', blockDays:7},
-  {name:'Colonizações'},
-  {name:'Informações'},
-  {name:'Micobactérias', opportunistic:true},
-  {name:'Serologia', opportunistic:true},
-  {name:'TSA'}
-].map((s,i)=>({id:'s_'+(i+1), name:s.name, opportunistic:s.opportunistic||false, blockDays:s.blockDays||null}));
+  {name:'Hemoculturas', code:'HC'},
+  {name:'Exsud. purulentos / Protoc. / Queimados', code:'PUS'},
+  {name:'Anaeróbios / Micologia', blockDays:7, code:'ANA'},
+  {name:'Inf. Respiratórias', code:'RSP'},
+  {name:'Urinas', code:'URI'},
+  {name:'Exs. Vaginais / Uretrais', code:'EXS'},
+  {name:'Coproculturas', code:'COP'},
+  {name:'Ex. Parasitológicos', blockDays:7, code:'PAR'},
+  {name:'Colonizações', code:'COL'},
+  {name:'Informações', code:'INF'},
+  {name:'Micobactérias', opportunistic:true, code:'BK'},
+  {name:'Serologia', opportunistic:true, code:'SER'},
+  {name:'TSA', opportunistic:true, code:'TSA'}
+].map((s,i)=>({id:'s_'+(i+1), name:s.name, opportunistic:s.opportunistic||false, blockDays:s.blockDays||null,
+  code:s.code||null, priorityEmployeeIds:[]}));
 
 function defaultState(){
   return {
@@ -387,7 +384,6 @@ function defaultState(){
     ],
     sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
     vacations:[],
-    folgas:[],
     erBusy:[],
     holidaysFixed: JSON.parse(JSON.stringify(PT_HOLIDAYS_FIXED)),
     holidaysCustom:[],
@@ -422,17 +418,27 @@ function migrateState(parsed){
   const merged = Object.assign(def, parsed||{});
   merged.settings = Object.assign({}, def.settings, parsed.settings||{});
   merged.sections = ((parsed.sections && parsed.sections.length) ? parsed.sections : def.sections)
-    .map(s=>Object.assign({opportunistic:false, blockDays:null}, s));
+    .map(s=>Object.assign({opportunistic:false, blockDays:null, code:null, priorityEmployeeIds:[]}, s));
   merged.weekend = Object.assign({}, def.weekend, parsed.weekend||{});
-  if(!merged.sections.some(s=>s.id===merged.weekend.tsaSectionId)) merged.weekend.tsaSectionId = merged.sections[0] ? merged.sections[0].id : null;
+  // garante que existe uma secção TSA válida (dados antigos podiam não a ter) e que
+  // a secção usada como TSA é sempre oportunista (sem duração de área fixa)
+  if(!merged.sections.some(s=>s.id===merged.weekend.tsaSectionId)){
+    let tsaSection = merged.sections.find(s=>s.name.trim().toUpperCase()==='TSA');
+    if(!tsaSection){
+      tsaSection = {id:'s_'+Math.random().toString(36).slice(2), name:'TSA', opportunistic:true, blockDays:null, code:'TSA', priorityEmployeeIds:[]};
+      merged.sections.push(tsaSection);
+    }
+    merged.weekend.tsaSectionId = tsaSection.id;
+  }
+  const tsaSec = merged.sections.find(s=>s.id===merged.weekend.tsaSectionId);
+  if(tsaSec){ tsaSec.opportunistic = true; tsaSec.blockDays = null; }
   merged.weekend.openSectionIds = (merged.weekend.openSectionIds||[]).filter(id=>merged.sections.some(s=>s.id===id));
   merged.employees = (parsed.employees||def.employees).map(e=>Object.assign({
     id:e.id||('e_'+Math.random().toString(36).slice(2)), name:e.name||'Funcionário',
     active: typeof e.active==='boolean'?e.active:true, notes:e.notes||''
   }, e, { eligibility: Object.assign({tarde:true}, e.eligibility||{}) }));
   merged.vacations = parsed.vacations||[];
-  merged.folgas = parsed.folgas||[];
-  merged.erBusy = parsed.erBusy||[];
+  merged.erBusy = (parsed.erBusy||[]).map(er=>Object.assign({shift:'D'}, er));
   merged.holidaysFixed = parsed.holidaysFixed||def.holidaysFixed;
   merged.holidaysCustom = parsed.holidaysCustom||[];
   merged.schedule = parsed.schedule||{};
@@ -440,6 +446,7 @@ function migrateState(parsed){
   if(!merged.range.start) merged.range.start = def.range.start;
   if(!merged.range.end) merged.range.end = def.range.end;
   merged.periodCursor = parsed.periodCursor || parsed.weekCursor || mondayOfISO(merged.range.start);
+  delete merged.folgas; // funcionalidade removida — usar Férias/Banco/Consulta/Baixa
   return merged;
 }
 function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -472,20 +479,20 @@ function isWeekend(dateISO){ const dow=parseISO(dateISO).getDay(); return dow===
 function isOnVacation(empId,dateISO){
   return state.vacations.some(v=>v.employeeId===empId && dateISO>=v.start && dateISO<=v.end);
 }
-function isOnFolga(empId,dateISO){
-  return state.folgas.some(f=>f.employeeId===empId && f.date===dateISO);
-}
 function isErBusy(empId,dateISO){
   return state.erBusy.some(er=>er.employeeId===empId && dateISO>=er.start && dateISO<=er.end);
 }
+function erShiftOn(empId,dateISO){
+  const er = state.erBusy.find(er=>er.employeeId===empId && dateISO>=er.start && dateISO<=er.end);
+  return er ? (er.shift||'D') : null;
+}
 function isAvailable(empId,dateISO){
-  return !isOnVacation(empId,dateISO) && !isOnFolga(empId,dateISO) && !isErBusy(empId,dateISO);
+  return !isOnVacation(empId,dateISO) && !isErBusy(empId,dateISO);
 }
 function unavailReason(empId,dateISO){
   if(isErBusy(empId,dateISO)) return 'SU';
   const v=state.vacations.find(v=>v.employeeId===empId && dateISO>=v.start && dateISO<=v.end);
   if(v) return v.type;
-  if(isOnFolga(empId,dateISO)) return 'Folga';
   return null;
 }
 
@@ -550,7 +557,7 @@ function _runGeneration(alerts){
     const todayLoad = {};
     const availableToday = activeEmps.filter(e=>isAvailable(e.id,date));
     if(!availableToday.length){
-      issues.push({type:'err', msg:`${formatPT(date)}: ninguém do laboratório está disponível (todos em SU/férias/folga).`});
+      issues.push({type:'err', msg:`${formatPT(date)}: ninguém do laboratório está disponível (todos em SU/férias).`});
     }
     for(const section of fixedSections){
       const ownerId = ownerMapsBySection[section.id][date];
@@ -563,7 +570,7 @@ function _runGeneration(alerts){
         continue;
       }
       // titular indisponível hoje (ou secção sem dono elegível) — procurar substituto
-      const eligible = availableToday.filter(e=> e.eligibility[section.id]!==false);
+      const eligible = filterByPriority(section, availableToday.filter(e=> e.eligibility[section.id]!==false));
       if(!eligible.length){
         issues.push({type:'err', msg:`${formatPT(date)}: não há ninguém disponível/elegível para "${section.name}".`});
         daySchedule[section.id] = null;
@@ -583,7 +590,7 @@ function _runGeneration(alerts){
     // Secções oportunistas (ex.: Serologia, Micobactérias): sem dono fixo — só entram se
     // sobrar alguém elegível e disponível; ficam em branco sem gerar aviso caso contrário.
     for(const section of opportunisticSections){
-      const eligible = availableToday.filter(e=> e.eligibility[section.id]!==false);
+      const eligible = filterByPriority(section, availableToday.filter(e=> e.eligibility[section.id]!==false));
       if(!eligible.length){ daySchedule[section.id] = null; continue; }
       eligible.sort((a,b)=> scoreCandidate(a,section.id,date,history,totalCount,todayLoad) - scoreCandidate(b,section.id,date,history,totalCount,todayLoad));
       const chosen = eligible[0];
@@ -694,7 +701,8 @@ function buildOwnerMapForSection(section, weekdayDates, activeEmps, ownerTotalCo
   const blocks = chunkIntoBlocks(weekdayDates, blockLen);
   const map = {};
   blocks.forEach(blockDates=>{
-    const eligible = activeEmps.filter(e=> e.eligibility[section.id]!==false && blockDates.some(d=>isAvailable(e.id,d)));
+    let eligible = activeEmps.filter(e=> e.eligibility[section.id]!==false && blockDates.some(d=>isAvailable(e.id,d)));
+    eligible = filterByPriority(section, eligible);
     let chosen = null;
     if(eligible.length){
       eligible.sort((a,b)=>{
@@ -724,6 +732,15 @@ function scoreCandidate(emp, sectionId, date, history, totalCount, todayLoad){
   return score;
 }
 function hashString(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h)+s.charCodeAt(i); h|=0; } return h; }
+
+// Se a secção tem funcionários prioritários e algum está na lista de candidatos, restringe
+// a escolha a eles primeiro (a equidade normal só decide entre os prioritários disponíveis).
+// Sem prioritários disponíveis, cai para a lista completa normalmente.
+function filterByPriority(section, candidates){
+  if(!section.priorityEmployeeIds || !section.priorityEmployeeIds.length) return candidates;
+  const priority = candidates.filter(e=> section.priorityEmployeeIds.includes(e.id));
+  return priority.length ? priority : candidates;
+}
 
 function enumerateWorkDates(startISO,endISO,includeWeekends){
   const out=[]; let d=parseISO(startISO); const end=parseISO(endISO);
@@ -837,21 +854,14 @@ function renderPeriod(){
   html += `<tr class="groupSep"><th class="sectionCol">Tarde</th>`;
   dates.forEach(dISO=>{ html += renderCell(dISO,'tarde', isWeekend(dISO), 'tarde-row'); });
   html += '</tr>';
-  // Folga (só leitura, vem das indisponibilidades)
-  html += `<tr><th class="sectionCol">Folga</th>`;
-  dates.forEach(dISO=>{
-    const names = state.employees.filter(e=>isOnFolga(e.id,dISO)).map(e=>initials(e.name)).join(', ');
-    html += `<td class="track-row ${isWeekend(dISO)?'weekend':''}">${names}</td>`;
-  });
-  html += '</tr>';
-  // Banco/S/CS/Férias (só leitura)
-  html += `<tr><th class="sectionCol">Banco / S / CS / Férias</th>`;
+  // Banco/S/CS/Férias + SU (só leitura)
+  html += `<tr><th class="sectionCol">Banco / S / CS / Férias / SU</th>`;
   dates.forEach(dISO=>{
     const parts = state.employees.filter(e=>isOnVacation(e.id,dISO)).map(e=>{
       const v = state.vacations.find(v=>v.employeeId===e.id && dISO>=v.start && dISO<=v.end);
       return `${initials(e.name)}(${vacTypeAbbr(v.type)})`;
     });
-    const erParts = state.employees.filter(e=>isErBusy(e.id,dISO)).map(e=>`${initials(e.name)}(SU)`);
+    const erParts = state.employees.filter(e=>isErBusy(e.id,dISO)).map(e=>`${initials(e.name)}(SU-${erShiftOn(e.id,dISO)})`);
     html += `<td class="track-row ${isWeekend(dISO)?'weekend':''}">${[...parts,...erParts].join(', ')}</td>`;
   });
   html += '</tr>';
@@ -874,7 +884,7 @@ function renderCell(dISO, key, weekend, extraClass='', optional=false){
     return `<td class="${cls} ${extraClass} closed-row"><span class="small">Fechado</span></td>`;
   }
   const opts = state.employees.filter(e=>e.active).map(e=>
-    `<option value="${e.id}" ${e.id===empId?'selected':''}>${escapeHtml(e.name)}</option>`).join('');
+    `<option value="${e.id}" title="${escapeHtml(e.name)}" ${e.id===empId?'selected':''}>${escapeHtml(initials(e.name))}</option>`).join('');
   const substTag = isSubst ? ' <span class="badge" title="Substituição — titular indisponível">subst.</span>' : '';
   const emptyCls = empty ? (optional ? 'optional-empty' : 'empty-warn') : '';
   return `<td class="${cls} ${extraClass} ${emptyCls} ${emp?'assigned':''}">`+
@@ -917,7 +927,7 @@ function renderEmployees(){
   const tb = document.querySelector('#empTable tbody');
   const headRow = document.getElementById('empHeadRow');
   headRow.innerHTML = `<th>Nome</th><th class="center">Ativo</th>`+
-    state.sections.map(s=>`<th class="center" title="${escapeHtml(s.name)}">${abbrev(s.name)}</th>`).join('')+
+    state.sections.map(s=>`<th class="center" title="${escapeHtml(s.name)}">${escapeHtml(sectionCode(s))}</th>`).join('')+
     `<th class="center">Tarde</th><th>Notas</th><th></th>`;
   tb.innerHTML = state.employees.map(e=>{
     const cb=(key)=>`<input type="checkbox" data-emp="${e.id}" data-elig="${key}" ${e.eligibility[key]!==false?'checked':''}
@@ -938,6 +948,7 @@ function abbrev(name){
   const words = name.split(/[\s\/]+/).filter(Boolean);
   return words.map(w=>w[0]).join('').toUpperCase().slice(0,4);
 }
+function sectionCode(s){ return s.code || abbrev(s.name); }
 function toggleEligibility(empId,key,checked){
   const e = state.employees.find(e=>e.id===empId); if(!e) return;
   e.eligibility[key] = checked;
@@ -963,18 +974,26 @@ function removeEmployee(empId){
 function renderSections(){
   const tb = document.querySelector('#sectionTable tbody');
   const blockOpts = [['','Usar global (bloco de '+state.settings.blockLengthDays+' dias)'],['7','7 dias (semanal)'],['14','14 dias'],['21','21 dias'],['28','28 dias']];
-  tb.innerHTML = state.sections.map((s,i)=>`<tr>
+  tb.innerHTML = state.sections.map((s,i)=>{
+    const blockCell = s.opportunistic ? '<span class="small">— (oportunista)</span>' :
+      `<select onchange="setSectionBlockDays('${s.id}',this.value)">
+        ${blockOpts.map(([v,label])=>`<option value="${v}" ${String(s.blockDays||'')===v?'selected':''}>${label}</option>`).join('')}
+      </select>`;
+    const priorityOpts = state.employees.map(e=>
+      `<option value="${e.id}" ${(s.priorityEmployeeIds||[]).includes(e.id)?'selected':''}>${escapeHtml(e.name)}</option>`).join('');
+    return `<tr>
     <td>${i+1}</td>
-    <td><input type="text" value="${escapeHtml(s.name)}" onchange="updateSection('${s.id}',this.value)" style="width:280px"/></td>
-    <td><select onchange="setSectionBlockDays('${s.id}',this.value)" ${s.opportunistic?'disabled':''}>
-      ${blockOpts.map(([v,label])=>`<option value="${v}" ${String(s.blockDays||'')===v?'selected':''}>${label}</option>`).join('')}
-    </select></td>
+    <td><input type="text" value="${escapeHtml(s.name)}" onchange="updateSection('${s.id}',this.value)" style="width:260px"/></td>
+    <td><input type="text" value="${escapeHtml(s.code||'')}" onchange="updateSectionCode('${s.id}',this.value)" style="width:60px" placeholder="${escapeHtml(abbrev(s.name))}"/></td>
+    <td>${blockCell}</td>
     <td class="center"><input type="checkbox" ${s.opportunistic?'checked':''} onchange="toggleSectionOpportunistic('${s.id}',this.checked)"/></td>
+    <td><select multiple size="3" style="min-width:130px" onchange="updateSectionPriority('${s.id}',this)">${priorityOpts}</select></td>
     <td>
       <button class="btn secondary xsmall" onclick="moveSection('${s.id}',-1)">▲</button>
       <button class="btn secondary xsmall" onclick="moveSection('${s.id}',1)">▼</button>
       <button class="btn danger xsmall" onclick="removeSection('${s.id}')">Remover</button>
-    </td></tr>`).join('');
+    </td></tr>`;
+  }).join('');
 }
 function setSectionBlockDays(id,value){
   const s=state.sections.find(s=>s.id===id); if(!s) return;
@@ -986,6 +1005,16 @@ function toggleSectionOpportunistic(id,checked){
   s.opportunistic = checked;
   saveState(); renderSections();
 }
+function updateSectionCode(id,value){
+  const s=state.sections.find(s=>s.id===id); if(!s) return;
+  s.code = value.trim().toUpperCase() || null;
+  saveState(); renderEmployees();
+}
+function updateSectionPriority(id,selectEl){
+  const s=state.sections.find(s=>s.id===id); if(!s) return;
+  s.priorityEmployeeIds = Array.from(selectEl.selectedOptions).map(o=>o.value);
+  saveState();
+}
 function updateSection(id,name){
   const s=state.sections.find(s=>s.id===id); if(!s) return;
   s.name=name; saveState(); renderSections(); renderEmployees(); renderWeekendConfig(); renderWeek(); renderStats();
@@ -995,7 +1024,7 @@ function addSection(){
   const name = input.value.trim();
   if(!name) return;
   const id = 's_'+Math.random().toString(36).slice(2);
-  state.sections.push({id,name});
+  state.sections.push({id,name,opportunistic:false,blockDays:null,code:null,priorityEmployeeIds:[]});
   state.employees.forEach(e=> e.eligibility[id]=true);
   input.value='';
   saveState(); renderSections(); renderEmployees(); renderWeekendConfig(); renderWeek(); renderStats();
@@ -1044,7 +1073,7 @@ function toggleWeekendOpen(sectionId,checked){
 /* --------- Indisponibilidades --------- */
 function refreshEmployeeSelects(){
   const opts = state.employees.map(e=>`<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('');
-  ['erEmp','vacEmp','folgaEmp'].forEach(id=>{
+  ['erEmp','vacEmp'].forEach(id=>{
     const el = document.getElementById(id); if(!el) return;
     const cur = el.value; el.innerHTML = opts; if(cur) el.value = cur;
   });
@@ -1053,9 +1082,10 @@ function addErBusy(){
   const employeeId = document.getElementById('erEmp').value;
   const start = document.getElementById('erStart').value;
   const end = document.getElementById('erEnd').value || start;
+  const shift = document.getElementById('erShift').value;
   const note = document.getElementById('erNote').value;
   if(!employeeId || !start){ flash('Indique funcionário e data de início.','err'); return; }
-  state.erBusy.push({employeeId,start,end,note});
+  state.erBusy.push({employeeId,start,end,shift,note});
   document.getElementById('erNote').value='';
   saveState(); renderErTable(); renderWeek();
 }
@@ -1064,7 +1094,7 @@ function renderErTable(){
   const tb = document.querySelector('#erTable tbody');
   tb.innerHTML = state.erBusy.map((er,i)=>{
     const e = state.employees.find(e=>e.id===er.employeeId);
-    return `<tr><td>${e?escapeHtml(e.name):'?'}</td><td>${er.start}</td><td>${er.end}</td><td>${escapeHtml(er.note||'')}</td>
+    return `<tr><td>${e?escapeHtml(e.name):'?'}</td><td>${er.start}</td><td>${er.end}</td><td>${er.shift==='N'?'Noite':'Dia'}</td><td>${escapeHtml(er.note||'')}</td>
       <td><button class="btn danger xsmall" onclick="removeErBusy(${i})">Remover</button></td></tr>`;
   }).join('');
 }
@@ -1088,25 +1118,6 @@ function renderVacTable(){
       <td><button class="btn danger xsmall" onclick="removeVacation(${i})">Remover</button></td></tr>`;
   }).join('');
 }
-function addFolga(){
-  const employeeId = document.getElementById('folgaEmp').value;
-  const date = document.getElementById('folgaDate').value;
-  const note = document.getElementById('folgaNote').value;
-  if(!employeeId || !date){ flash('Indique funcionário e data.','err'); return; }
-  state.folgas.push({employeeId,date,note});
-  document.getElementById('folgaNote').value='';
-  saveState(); renderFolgaTable(); renderWeek();
-}
-function removeFolga(i){ state.folgas.splice(i,1); saveState(); renderFolgaTable(); renderWeek(); }
-function renderFolgaTable(){
-  const tb = document.querySelector('#folgaTable tbody');
-  tb.innerHTML = state.folgas.map((f,i)=>{
-    const e = state.employees.find(e=>e.id===f.employeeId);
-    return `<tr><td>${e?escapeHtml(e.name):'?'}</td><td>${f.date}</td><td>${escapeHtml(f.note||'')}</td>
-      <td><button class="btn danger xsmall" onclick="removeFolga(${i})">Remover</button></td></tr>`;
-  }).join('');
-}
-
 /* --------- Feriados --------- */
 function renderHolidays(){
   const tbF = document.querySelector('#holFixedTable tbody');
@@ -1185,7 +1196,6 @@ function renderAll(){
   renderWeekendConfig();
   renderErTable();
   renderVacTable();
-  renderFolgaTable();
   renderHolidays();
   renderPeriod();
   renderStats();
