@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Escala — Laboratório de Microbiologia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0f172a; --panel:#111827; --panel2:#1f2937; --line:#334155;
+    --text:#e5e7eb; --muted:#94a3b8; --accent:#38bdf8; --accent2:#22d3ee;
+    --ok:#22c55e; --warn:#f59e0b; --err:#ef4444; --tarde:#a78bfa; --track:#64748b;
+  }
+  :root{ --sidebar-w:210px; --header-h:53px; }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:'Plus Jakarta Sans',system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px;letter-spacing:-0.005em;height:100%}
+  input,select,textarea,button{font-family:inherit}
+  table{font-variant-numeric:tabular-nums}
+  code,kbd,.mono{font-family:'JetBrains Mono',ui-monospace,Consolas,monospace}
+  header{padding:12px 18px;background:#0b1220;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;position:sticky;top:0;z-index:10;height:var(--header-h)}
+  header h1{font-size:17px;margin:0;font-weight:700;letter-spacing:-0.02em}
+  header .spacer{flex:1}
+  .page-body{display:flex;min-height:calc(100vh - var(--header-h))}
+  #nav{width:var(--sidebar-w);flex-shrink:0;background:#0b1220;border-right:1px solid var(--line);
+    display:flex;flex-direction:column;gap:3px;padding:14px 10px;position:sticky;top:var(--header-h);
+    height:calc(100vh - var(--header-h));overflow-y:auto;z-index:5}
+  #nav button{background:transparent;color:var(--muted);border:0;padding:9px 12px;border-radius:8px;
+    cursor:pointer;font-size:13px;font-weight:500;text-align:left;width:100%;transition:background .12s,color .12s}
+  #nav button:hover{background:var(--panel2);color:var(--text)}
+  #nav button.active{background:var(--accent);color:#06283d;font-weight:700}
+  #nav .nav-section{font-size:10px;color:var(--line);text-transform:uppercase;letter-spacing:.08em;padding:12px 12px 4px;font-weight:700}
+  main{flex:1;padding:18px;overflow-y:auto;max-width:1400px}
+  .tab{display:none} .tab.active{display:block}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px}
+  .card h2{margin:0 0 10px 0;font-size:15px;font-weight:700;color:var(--accent2);letter-spacing:-0.01em}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+  .row > *{flex:0 0 auto}
+  label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted);font-weight:500}
+  input[type=text],input[type=number],input[type=date],select,textarea{
+    background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:13px}
+  input[type=checkbox]{appearance:none;-webkit-appearance:none;width:19px;height:19px;flex-shrink:0;
+    border:2px solid var(--line);border-radius:5px;background:var(--panel2);cursor:pointer;position:relative}
+  input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+  input[type=checkbox]:checked::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;
+    justify-content:center;color:#06283d;font-size:12px;font-weight:800}
+  input[type=checkbox]:disabled{opacity:.3;cursor:not-allowed}
+  button.btn{background:var(--accent);color:#06283b;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px}
+  button.btn.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line);font-weight:500}
+  button.btn.danger{background:var(--err);color:#fff}
+  button.btn.xsmall{padding:3px 7px;font-size:11px;border-radius:6px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:middle}
+  th{background:#0b1220;font-weight:600;color:var(--muted)}
+  tbody tr:hover{background:#172136}
+  .badge{font-size:11px;padding:1px 5px;border-radius:6px;background:#0b1220;border:1px solid var(--line);color:var(--muted)}
+  .alerts{margin-top:8px}
+  .alert{padding:8px 10px;border-radius:8px;margin-bottom:6px;font-size:13px;border:1px solid}
+  .alert.warn{background:#3a2a08;border-color:var(--warn);color:#fde68a}
+  .alert.err{background:#3a0e0e;border-color:var(--err);color:#fecaca}
+  .alert.ok{background:#0e2e1a;border-color:var(--ok);color:#bbf7d0}
+  .small{font-size:11px;color:var(--muted)}
+  .right{text-align:right} .center{text-align:center}
+  select[multiple]{min-height:90px}
+  /* ---- Weekly schedule table (mirrors the paper form) ---- */
+  #schedTable{table-layout:fixed}
+  #schedTable th.sectionCol{width:220px}
+  #schedTable td.weekend{background:#172136}
+  #schedTable tr.groupSep td, #schedTable tr.groupSep th{border-top:2px solid var(--line)}
+  #schedTable td.assigned{font-weight:700;color:var(--accent2)}
+  #schedTable td.tarde-row{background:#1a1530}
+  #schedTable td.track-row{background:#0f1a24;color:var(--muted);font-size:12px}
+  #schedTable td.empty-warn{background:#3a0e0e;color:#fecaca}
+  .cell-pick{width:100%;background:transparent;border:1px solid transparent;color:inherit;font-weight:700;
+    border-radius:5px;padding:3px 4px;font-size:13px}
+  .cell-pick:hover{border-color:var(--line)}
+  .cell-pick:focus{background:var(--panel2);border-color:var(--accent)}
+  .weekNav{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧫 Escala — Laboratório de Microbiologia</h1>
+  <span class="badge" id="rangeBadge">—</span>
+</header>
+
+<div class="page-body">
+<nav id="nav">
+  <span class="nav-section">Escala</span>
+  <button data-tab="escala" class="active">🗓️ Escala</button>
+  <button data-tab="estatisticas">📊 Estatísticas</button>
+  <span class="nav-section">Configuração</span>
+  <button data-tab="funcionarios">👤 Funcionários</button>
+  <button data-tab="seccoes">🧪 Secções</button>
+  <button data-tab="indisp">🚫 Indisponibilidades</button>
+  <button data-tab="feriados">📅 Feriados</button>
+  <span class="nav-section">Dados</span>
+  <button data-tab="impexp">💾 Importar / Exportar</button>
+</nav>
+
+<main>
+
+  <!-- ESCALA -->
+  <section id="tab-escala" class="tab active">
+    <div class="card">
+      <h2>Geração da escala</h2>
+      <div class="row">
+        <label>Data início <input type="date" id="rangeStart"/></label>
+        <label>Data fim <input type="date" id="rangeEnd"/></label>
+        <label>Janela de equidade
+          <select id="fairWindow">
+            <option value="10">10 dias úteis</option>
+            <option value="14" selected>14 dias úteis (2 semanas)</option>
+            <option value="20">20 dias úteis</option>
+          </select>
+        </label>
+        <label style="flex-direction:row;align-items:center;gap:6px">
+          <input type="checkbox" id="includeWeekends"/> <span style="color:var(--text);font-size:13px">Incluir fins-de-semana</span>
+        </label>
+        <button class="btn" onclick="generateSchedule()">⚙️ Gerar escala</button>
+        <button class="btn secondary" onclick="clearSchedule()">Limpar</button>
+      </div>
+      <div id="genAlerts" class="alerts"></div>
+    </div>
+
+    <div class="card">
+      <h2>Escala semanal</h2>
+      <div class="weekNav">
+        <button class="btn secondary" onclick="changeWeek(-1)">◀ Semana anterior</button>
+        <span id="weekLabel" style="font-weight:600"></span>
+        <button class="btn secondary" onclick="changeWeek(1)">Próxima semana ▶</button>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="schedTable"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="small">Clique numa célula para reatribuir manualmente. Células a vermelho indicam que não foi
+        possível encontrar alguém elegível e disponível.</p>
+    </div>
+  </section>
+
+  <!-- FUNCIONÁRIOS -->
+  <section id="tab-funcionarios" class="tab">
+    <div class="card">
+      <h2>Funcionários (equipa LM)</h2>
+      <div class="row" style="margin-bottom:10px">
+        <button class="btn" onclick="addEmployee()">+ Novo funcionário</button>
+        <span class="small" style="margin-left:auto">Total: <span id="empCount">0</span></span>
+      </div>
+      <div style="overflow-x:auto">
+        <table id="empTable"><thead><tr id="empHeadRow"></tr></thead><tbody></tbody></table>
+      </div>
+      <p class="small">As colunas de elegibilidade determinam que secções cada pessoa pode fazer. "Tarde" é uma
+        atribuição extra do dia — não impede a secção da manhã da mesma pessoa.</p>
+    </div>
+  </section>
+
+  <!-- SECÇÕES -->
+  <section id="tab-seccoes" class="tab">
+    <div class="card">
+      <h2>Secções da escala</h2>
+      <p class="small">Ordem de cima para baixo tal como aparece na escala em papel. "Tarde" e as linhas de
+        seguimento (Folga / Banco-S-CS-Férias) são tratadas à parte e não precisam de ser adicionadas aqui.</p>
+      <div class="row" style="margin-bottom:10px">
+        <label>Nome da secção <input type="text" id="newSectionName" placeholder="Ex: Hemoculturas"/></label>
+        <button class="btn" onclick="addSection()">+ Adicionar secção</button>
+      </div>
+      <table id="sectionTable">
+        <thead><tr><th>#</th><th>Secção</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- INDISPONIBILIDADES -->
+  <section id="tab-indisp" class="tab">
+    <div class="card">
+      <h2>Serviço de Urgência (ER) — indisponível para LM</h2>
+      <p class="small">Dias em que a pessoa está escalada no SU (dia/noite) e por isso não está disponível para o
+        laboratório. O gerador salta estes dias para essa pessoa.</p>
+      <div class="row" style="margin-bottom:10px">
+        <label>Funcionário <select id="erEmp"></select></label>
+        <label>Início <input type="date" id="erStart"/></label>
+        <label>Fim <input type="date" id="erEnd"/></label>
+        <label>Nota <input type="text" id="erNote" placeholder="Opcional"/></label>
+        <button class="btn" onclick="addErBusy()">+ Adicionar</button>
+      </div>
+      <table id="erTable">
+        <thead><tr><th>Funcionário</th><th>Início</th><th>Fim</th><th>Nota</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Férias / Banco / Consulta / Baixa</h2>
+      <div class="row" style="margin-bottom:10px">
+        <label>Funcionário <select id="vacEmp"></select></label>
+        <label>Tipo
+          <select id="vacType">
+            <option value="ferias">Férias</option>
+            <option value="banco">Banco de horas</option>
+            <option value="cs">Consulta</option>
+            <option value="baixa">Baixa</option>
+            <option value="outro">Outro</option>
+          </select>
+        </label>
+        <label>Início <input type="date" id="vacStart"/></label>
+        <label>Fim <input type="date" id="vacEnd"/></label>
+        <label>Nota <input type="text" id="vacNote" placeholder="Opcional"/></label>
+        <button class="btn" onclick="addVacation()">+ Adicionar</button>
+      </div>
+      <table id="vacTable">
+        <thead><tr><th>Funcionário</th><th>Tipo</th><th>Início</th><th>Fim</th><th>Nota</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Folgas isoladas</h2>
+      <div class="row" style="margin-bottom:10px">
+        <label>Funcionário <select id="folgaEmp"></select></label>
+        <label>Data <input type="date" id="folgaDate"/></label>
+        <label>Nota <input type="text" id="folgaNote" placeholder="Opcional"/></label>
+        <button class="btn" onclick="addFolga()">+ Adicionar</button>
+      </div>
+      <table id="folgaTable">
+        <thead><tr><th>Funcionário</th><th>Data</th><th>Nota</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FERIADOS -->
+  <section id="tab-feriados" class="tab">
+    <div class="card">
+      <h2>Feriados nacionais fixos</h2>
+      <p class="small">Pré-carregados. Pode editar ou desativar. Páscoa, Sexta-Feira Santa e Corpo de Deus são
+        calculados automaticamente por ano.</p>
+      <table id="holFixedTable">
+        <thead><tr><th>Mês-Dia</th><th>Nome</th><th>Ativo</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h2>Feriados personalizados</h2>
+      <div class="row" style="margin-bottom:10px">
+        <label>Data <input type="date" id="holDate"/></label>
+        <label>Nome <input type="text" id="holName" placeholder="Ex: Feriado municipal"/></label>
+        <button class="btn" onclick="addCustomHoliday()">+ Adicionar</button>
+      </div>
+      <table id="holCustomTable">
+        <thead><tr><th>Data</th><th>Nome</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ESTATÍSTICAS -->
+  <section id="tab-estatisticas" class="tab">
+    <div class="card">
+      <h2>Estatísticas por funcionário (no período gerado)</h2>
+      <div style="overflow-x:auto">
+        <table id="statsTable"><thead></thead><tbody></tbody></table>
+      </div>
+      <p class="small">Contagem de atribuições por secção dentro do intervalo gerado atualmente.</p>
+    </div>
+  </section>
+
+  <!-- IMPORTAR / EXPORTAR -->
+  <section id="tab-impexp" class="tab">
+    <div class="card">
+      <h2>Importar / Exportar dados</h2>
+      <div class="row">
+        <button class="btn" onclick="exportJSON()">⬇️ Exportar JSON</button>
+        <label class="btn secondary" style="cursor:pointer">
+          ⬆️ Importar JSON
+          <input type="file" accept="application/json" id="importFile" style="display:none" onchange="importJSON(event)"/>
+        </label>
+      </div>
+      <p class="small">Os dados são guardados automaticamente no navegador (localStorage) sempre que algo é alterado.</p>
+    </div>
+    <div class="card" style="border-color:var(--err)">
+      <h2 style="color:var(--err)">Repor configuração inicial</h2>
+      <p class="small">Apaga <strong>todos</strong> os dados guardados e repõe os valores de fábrica. Irreversível.</p>
+      <div class="row" style="margin-top:8px">
+        <button class="btn danger" onclick="confirmReset()">↺ Repor tudo…</button>
+      </div>
+      <div id="resetConfirmBox" style="display:none;margin-top:10px" class="alert err">
+        ⚠️ Tem a certeza? Esta operação não pode ser desfeita.<br>
+        <div class="row" style="margin-top:8px">
+          <button class="btn danger" onclick="doReset()">Sim, apagar tudo</button>
+          <button class="btn secondary" onclick="cancelReset()">Cancelar</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+</div>
+
+<script>
+/* =========================================================================
+   ESCALA — LABORATÓRIO DE MICROBIOLOGIA
+   Aplicação Web em ficheiro único, no mesmo espírito do "scheduler" (ER).
+   Em vez de gerar cobertura por turno, atribui uma pessoa por secção/dia,
+   com equidade numa janela deslizante (~2 semanas úteis) e respeitando
+   indisponibilidades vindas do SU (turnos ER), férias e folgas.
+   ========================================================================= */
+
+const LS_KEY = 'escala_micro_v1';
+
+const PT_HOLIDAYS_FIXED = [
+  {mm:1, dd:1,  name:'Ano Novo',                    active:true},
+  {mm:4, dd:25, name:'Dia da Liberdade',            active:true},
+  {mm:5, dd:1,  name:'Dia do Trabalhador',          active:true},
+  {mm:6, dd:10, name:'Dia de Portugal',             active:true},
+  {mm:8, dd:15, name:'Assunção de Nossa Senhora',   active:true},
+  {mm:10,dd:5,  name:'Implantação da República',    active:true},
+  {mm:11,dd:1,  name:'Todos os Santos',             active:true},
+  {mm:12,dd:1,  name:'Restauração da Independência',active:true},
+  {mm:12,dd:8,  name:'Imaculada Conceição',         active:true},
+  {mm:12,dd:25, name:'Natal',                       active:true}
+];
+
+const DEFAULT_SECTIONS = [
+  'Hemoculturas',
+  'Exsud. purulentos / Protoc. / Queimados',
+  'Anaeróbios / Micologia',
+  'Inf. Respiratórias (incl. Faríng/nasais)',
+  'Urinas',
+  'Exs. Vaginais / Uretrais',
+  'Coproculturas',
+  'Ex. Parasitológicos',
+  'Colonizações',
+  'Informações',
+  'Micobactérias',
+  'Serologia'
+].map((name,i)=>({id:'s_'+(i+1), name}));
+
+function defaultState(){
+  return {
+    employees:[
+      emp('e_1','Pedro C'), emp('e_2','Bruno C'), emp('e_3','Yuliya V'),
+      emp('e_4','Carlos R'), emp('e_5','Samuel L'), emp('e_6','Ana F'),
+      emp('e_7','Maria L')
+    ],
+    sections: JSON.parse(JSON.stringify(DEFAULT_SECTIONS)),
+    vacations:[],
+    folgas:[],
+    erBusy:[],
+    holidaysFixed: JSON.parse(JSON.stringify(PT_HOLIDAYS_FIXED)),
+    holidaysCustom:[],
+    settings:{ fairWindow:14, includeWeekends:false },
+    schedule:{},   // {date:{sectionId:employeeId, tarde:employeeId}}
+    range:{start:firstOfThisMonthISO(), end:lastOfThisMonthISO()},
+    weekCursor: mondayOfISO(iso(new Date()))
+  };
+}
+function emp(id,name){
+  return {id, name, active:true, eligibility:{tarde:true}, notes:''};
+}
+function firstOfThisMonthISO(){ const d=new Date(); return iso(new Date(d.getFullYear(),d.getMonth(),1)); }
+function lastOfThisMonthISO(){  const d=new Date(); return iso(new Date(d.getFullYear(),d.getMonth()+1,0)); }
+function iso(d){ const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),day=String(d.getDate()).padStart(2,'0'); return `${y}-${m}-${day}`; }
+function parseISO(s){ const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); }
+function addDays(d,n){ const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function mondayOfISO(dISO){ const d=parseISO(dISO); const dow=(d.getDay()+6)%7; return iso(addDays(d,-dow)); }
+
+/* --------- Persistência --------- */
+let state = loadState();
+function loadState(){
+  try{
+    const raw = localStorage.getItem(LS_KEY);
+    if(!raw) return defaultState();
+    return migrateState(JSON.parse(raw));
+  }catch(e){ console.warn('Estado inválido, a repor.',e); return defaultState(); }
+}
+function migrateState(parsed){
+  const def = defaultState();
+  const merged = Object.assign(def, parsed||{});
+  merged.settings = Object.assign({}, def.settings, parsed.settings||{});
+  merged.sections = (parsed.sections && parsed.sections.length) ? parsed.sections : def.sections;
+  merged.employees = (parsed.employees||def.employees).map(e=>Object.assign({
+    id:e.id||('e_'+Math.random().toString(36).slice(2)), name:e.name||'Funcionário',
+    active: typeof e.active==='boolean'?e.active:true, notes:e.notes||''
+  }, e, { eligibility: Object.assign({tarde:true}, e.eligibility||{}) }));
+  merged.vacations = parsed.vacations||[];
+  merged.folgas = parsed.folgas||[];
+  merged.erBusy = parsed.erBusy||[];
+  merged.holidaysFixed = parsed.holidaysFixed||def.holidaysFixed;
+  merged.holidaysCustom = parsed.holidaysCustom||[];
+  merged.schedule = parsed.schedule||{};
+  merged.range = parsed.range || def.range;
+  if(!merged.range.start) merged.range.start = def.range.start;
+  if(!merged.range.end) merged.range.end = def.range.end;
+  merged.weekCursor = parsed.weekCursor || mondayOfISO(merged.range.start);
+  return merged;
+}
+function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
+function flash(msg,type='ok'){
+  const a=document.createElement('div'); a.className='alert '+type; a.textContent=msg;
+  const box=document.getElementById('genAlerts')||document.body; box.prepend(a);
+  setTimeout(()=>a.remove(),4000);
+}
+
+/* --------- Feriados --------- */
+function easterSunday(year){
+  const a=year%19,b=Math.floor(year/100),c=year%100,d=Math.floor(b/4),e=b%4,f=Math.floor((b+8)/25),
+    g=Math.floor((b-f+1)/3),h=(19*a+b-d-g+15)%30,i=Math.floor(c/4),k=c%4,l=(32+2*e+2*i-h-k)%7,
+    m=Math.floor((a+11*h+22*l)/451),month=Math.floor((h+l-7*m+114)/31),day=((h+l-7*m+114)%31)+1;
+  return new Date(year,month-1,day);
+}
+function holidaysForYear(year){
+  const list=[];
+  state.holidaysFixed.forEach(h=>{ if(h.active) list.push({date:iso(new Date(year,h.mm-1,h.dd)),name:h.name}); });
+  const easter=easterSunday(year);
+  list.push({date:iso(addDays(easter,-2)),name:'Sexta-Feira Santa'});
+  list.push({date:iso(addDays(easter,60)),name:'Corpo de Deus'});
+  state.holidaysCustom.forEach(h=>{ if(h.date.startsWith(String(year))) list.push({date:h.date,name:h.name}); });
+  return list;
+}
+function isHoliday(dateISO){ return holidaysForYear(parseInt(dateISO.slice(0,4),10)).some(h=>h.date===dateISO); }
+function isWeekend(dateISO){ const dow=parseISO(dateISO).getDay(); return dow===0||dow===6; }
+
+/* --------- Disponibilidade --------- */
+function isOnVacation(empId,dateISO){
+  return state.vacations.some(v=>v.employeeId===empId && dateISO>=v.start && dateISO<=v.end);
+}
+function isOnFolga(empId,dateISO){
+  return state.folgas.some(f=>f.employeeId===empId && f.date===dateISO);
+}
+function isErBusy(empId,dateISO){
+  return state.erBusy.some(er=>er.employeeId===empId && dateISO>=er.start && dateISO<=er.end);
+}
+function isAvailable(empId,dateISO){
+  return !isOnVacation(empId,dateISO) && !isOnFolga(empId,dateISO) && !isErBusy(empId,dateISO);
+}
+function unavailReason(empId,dateISO){
+  if(isErBusy(empId,dateISO)) return 'SU';
+  const v=state.vacations.find(v=>v.employeeId===empId && dateISO>=v.start && dateISO<=v.end);
+  if(v) return v.type;
+  if(isOnFolga(empId,dateISO)) return 'Folga';
+  return null;
+}
+
+/* =========================================================================
+   ALGORITMO DE GERAÇÃO — atribuição de secções por dia com equidade
+   numa janela deslizante de dias úteis.
+   ========================================================================= */
+function generateSchedule(){
+  const alerts=document.getElementById('genAlerts'); alerts.innerHTML='';
+  try{ _runGeneration(alerts); }
+  catch(err){
+    console.error('[Escala Micro] Erro na geração:', err);
+    const a=document.createElement('div'); a.className='alert err';
+    a.innerHTML='❌ Erro na geração: '+escapeHtml(err.message||String(err))+
+      '<br><span class="small">Abra a consola do navegador (F12) para mais detalhes.</span>';
+    alerts.appendChild(a);
+  }
+}
+
+function _runGeneration(alerts){
+  state.range.start = document.getElementById('rangeStart').value;
+  state.range.end   = document.getElementById('rangeEnd').value;
+  state.settings.fairWindow = parseInt(document.getElementById('fairWindow').value,10);
+  state.settings.includeWeekends = document.getElementById('includeWeekends').checked;
+  if(!state.range.start || !state.range.end) throw new Error('Indique a data de início e fim.');
+  if(state.range.end < state.range.start) throw new Error('A data de fim é anterior à de início.');
+  const activeEmps = state.employees.filter(e=>e.active);
+  if(!activeEmps.length) throw new Error('Não existem funcionários ativos.');
+  if(!state.sections.length) throw new Error('Não existem secções definidas.');
+
+  saveState();
+
+  const dates = enumerateWorkDates(state.range.start, state.range.end, state.settings.includeWeekends);
+  const issues = [];
+  // histórico recente por (empId,sectionId) -> lista de datas (para janela de equidade)
+  const history = {}; // sectionId -> {empId: [dates]}
+  state.sections.forEach(s=> history[s.id]={});
+  history['tarde'] = {};
+  const totalCount = {}; // empId -> total atribuições no período (para 2ª equidade geral)
+  activeEmps.forEach(e=> totalCount[e.id]=0);
+
+  state.schedule = {};
+
+  for(const date of dates){
+    const daySchedule = {};
+    // Quem está de facto disponível para o laboratório hoje (não é 1 pessoa por secção:
+    // cada pessoa presente costuma cobrir várias secções no mesmo dia).
+    const todayLoad = {}; // empId -> nº de secções já atribuídas hoje
+
+    const availableToday = activeEmps.filter(e=>isAvailable(e.id,date));
+    if(!availableToday.length){
+      issues.push({type:'err', msg:`${formatPT(date)}: ninguém do laboratório está disponível (todos em SU/férias/folga).`});
+    }
+
+    for(const section of state.sections){
+      const eligible = availableToday.filter(e=> e.eligibility[section.id]!==false); // undefined = elegível por omissão
+      if(!eligible.length){
+        issues.push({type:'err', msg:`${formatPT(date)}: não há ninguém disponível/elegível para "${section.name}".`});
+        daySchedule[section.id] = null;
+        continue;
+      }
+      eligible.sort((a,b)=> scoreCandidate(a,section.id,date,history,totalCount,todayLoad) - scoreCandidate(b,section.id,date,history,totalCount,todayLoad));
+      const chosen = eligible[0];
+      daySchedule[section.id] = chosen.id;
+      todayLoad[chosen.id] = (todayLoad[chosen.id]||0)+1;
+      totalCount[chosen.id] = (totalCount[chosen.id]||0)+1;
+      (history[section.id][chosen.id] = history[section.id][chosen.id]||[]).push(date);
+    }
+
+    // Tarde: pessoa extra da tarde — pode coincidir com secção da manhã da mesma pessoa
+    const tardeEligible = availableToday.filter(e=> e.eligibility.tarde!==false);
+    if(tardeEligible.length){
+      tardeEligible.sort((a,b)=> scoreCandidate(a,'tarde',date,history,totalCount,todayLoad) - scoreCandidate(b,'tarde',date,history,totalCount,todayLoad));
+      const chosen = tardeEligible[0];
+      daySchedule.tarde = chosen.id;
+      (history.tarde[chosen.id] = history.tarde[chosen.id]||[]).push(date);
+    } else {
+      issues.push({type:'warn', msg:`${formatPT(date)}: não há ninguém disponível para a Tarde.`});
+      daySchedule.tarde = null;
+    }
+
+    state.schedule[date] = daySchedule;
+  }
+
+  saveState();
+  renderAlerts(issues);
+  state.weekCursor = mondayOfISO(state.range.start);
+  renderWeek();
+  renderStats();
+
+  const filled = dates.length*(state.sections.length+1);
+  const errCount = issues.filter(i=>i.type==='err').length;
+  const diag = document.createElement('div');
+  diag.className = 'alert ' + (errCount===0 ? 'ok' : 'warn');
+  diag.innerHTML = `📊 <strong>Geração concluída.</strong> Dias: ${dates.length} · Secções: ${state.sections.length} · `+
+    `Lugares por preencher com problemas: ${errCount}`;
+  alerts.appendChild(diag);
+}
+
+// Menor pontuação = melhor candidato.
+// 1ª prioridade: distribuir as secções do próprio dia por quem está presente
+// (quem já ficou com menos secções hoje entra primeiro).
+// 2ª: quem tem menos carga total na janela de equidade recente (~2 semanas úteis).
+// 3ª: quem fez esta secção específica menos vezes recentemente (variedade).
+function scoreCandidate(emp, sectionId, date, history, totalCount, todayLoad){
+  const windowDays = state.settings.fairWindow;
+  const cutoff = addDays(parseISO(date), -windowDays);
+  const hist = history[sectionId][emp.id]||[];
+  const recentSameSection = hist.filter(d=>parseISO(d)>=cutoff).length;
+  let score = (todayLoad[emp.id]||0)*10000;
+  score += (totalCount[emp.id]||0)*100;
+  score += recentSameSection*10;
+  score += (Math.abs(hashString(emp.id+'|'+sectionId))%7);
+  return score;
+}
+function hashString(s){ let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h)+s.charCodeAt(i); h|=0; } return h; }
+
+function enumerateWorkDates(startISO,endISO,includeWeekends){
+  const out=[]; let d=parseISO(startISO); const end=parseISO(endISO);
+  while(d<=end){
+    const dISO=iso(d);
+    const weekend = isWeekend(dISO);
+    if(includeWeekends || !weekend){
+      if(!isHoliday(dISO)) out.push(dISO);
+    }
+    d=addDays(d,1);
+  }
+  return out;
+}
+
+function clearSchedule(){
+  state.schedule={}; saveState(); renderWeek(); renderStats();
+  document.getElementById('genAlerts').innerHTML='';
+  flash('Escala limpa.','ok');
+}
+
+function renderAlerts(issues){
+  const box=document.getElementById('genAlerts');
+  box.innerHTML='';
+  if(!issues.length){
+    const ok=document.createElement('div'); ok.className='alert ok';
+    ok.textContent='Escala gerada sem avisos.'; box.appendChild(ok); return;
+  }
+  const seen=new Set();
+  issues.forEach(i=>{
+    const k=i.type+'|'+i.msg; if(seen.has(k)) return; seen.add(k);
+    const a=document.createElement('div'); a.className='alert '+i.type;
+    a.textContent=(i.type==='err'?'❌ ':'⚠️ ')+i.msg;
+    box.appendChild(a);
+  });
+}
+function formatPT(dateISO){
+  const d=parseISO(dateISO);
+  return d.toLocaleDateString('pt-PT',{weekday:'short',day:'2-digit',month:'2-digit'});
+}
+function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+
+/* =========================================================================
+   RENDERIZAÇÃO — vista semanal (imita a folha em papel)
+   ========================================================================= */
+function changeWeek(delta){
+  state.weekCursor = iso(addDays(parseISO(state.weekCursor), delta*7));
+  saveState(); renderWeek();
+}
+function weekDates(mondayISO){
+  const days = state.settings.includeWeekends ? 7 : 5;
+  const out=[]; for(let i=0;i<days;i++) out.push(iso(addDays(parseISO(mondayISO),i)));
+  return out;
+}
+function renderWeek(){
+  const monday = state.weekCursor || mondayOfISO(iso(new Date()));
+  const dates = weekDates(monday);
+  const sunday = dates[dates.length-1];
+  document.getElementById('weekLabel').textContent =
+    `${formatPT(dates[0])} — ${formatPT(sunday)}`;
+  document.getElementById('rangeBadge').textContent =
+    state.range.start ? `${state.range.start} → ${state.range.end}` : '—';
+
+  const thead = document.querySelector('#schedTable thead');
+  const tbody = document.querySelector('#schedTable tbody');
+  thead.innerHTML = '<tr><th class="sectionCol">Secção</th>'+
+    dates.map(dISO=>{
+      const d=parseISO(dISO);
+      const wname = d.toLocaleDateString('pt-PT',{weekday:'short'});
+      const holi = isHoliday(dISO);
+      return `<th class="${isWeekend(dISO)?'weekend':''}">${wname} (${d.getDate()})${holi?'<br><span class="badge">Feriado</span>':''}</th>`;
+    }).join('')+'</tr>';
+
+  let html='';
+  state.sections.forEach(section=>{
+    html += `<tr><th class="sectionCol">${escapeHtml(section.name)}</th>`;
+    dates.forEach(dISO=>{
+      html += renderCell(dISO, section.id, isWeekend(dISO));
+    });
+    html += '</tr>';
+  });
+  // Tarde
+  html += `<tr class="groupSep"><th class="sectionCol">Tarde</th>`;
+  dates.forEach(dISO=>{ html += renderCell(dISO,'tarde', isWeekend(dISO), 'tarde-row'); });
+  html += '</tr>';
+  // Folga (só leitura, vem das indisponibilidades)
+  html += `<tr><th class="sectionCol">Folga</th>`;
+  dates.forEach(dISO=>{
+    const names = state.employees.filter(e=>isOnFolga(e.id,dISO)).map(e=>initials(e.name)).join(', ');
+    html += `<td class="track-row ${isWeekend(dISO)?'weekend':''}">${names}</td>`;
+  });
+  html += '</tr>';
+  // Banco/S/CS/Férias (só leitura)
+  html += `<tr><th class="sectionCol">Banco / S / CS / Férias</th>`;
+  dates.forEach(dISO=>{
+    const parts = state.employees.filter(e=>isOnVacation(e.id,dISO)).map(e=>{
+      const v = state.vacations.find(v=>v.employeeId===e.id && dISO>=v.start && dISO<=v.end);
+      return `${initials(e.name)}(${vacTypeAbbr(v.type)})`;
+    });
+    const erParts = state.employees.filter(e=>isErBusy(e.id,dISO)).map(e=>`${initials(e.name)}(SU)`);
+    html += `<td class="track-row ${isWeekend(dISO)?'weekend':''}">${[...parts,...erParts].join(', ')}</td>`;
+  });
+  html += '</tr>';
+
+  tbody.innerHTML = html;
+}
+function vacTypeAbbr(t){ return {ferias:'F',banco:'B',cs:'CS',baixa:'S',outro:'O'}[t]||'?'; }
+function initials(name){
+  return name.trim().split(/\s+/).map(p=>p[0]).join('').toUpperCase();
+}
+function renderCell(dISO, key, weekend, extraClass=''){
+  const day = state.schedule[dISO];
+  const empId = day ? day[key] : undefined;
+  const emp = empId ? state.employees.find(e=>e.id===empId) : null;
+  const empty = day && day[key]===null;
+  const opts = state.employees.filter(e=>e.active).map(e=>
+    `<option value="${e.id}" ${e.id===empId?'selected':''}>${escapeHtml(e.name)}</option>`).join('');
+  const cls = ['weekend'].filter(()=>weekend).join(' ');
+  return `<td class="${cls} ${extraClass} ${empty?'empty-warn':''} ${emp?'assigned':''}">`+
+    `<select class="cell-pick" onchange="manualAssign('${dISO}','${key}',this.value)">`+
+    `<option value="">—</option>${opts}</select></td>`;
+}
+function manualAssign(dISO,key,empId){
+  if(!state.schedule[dISO]) state.schedule[dISO]={};
+  state.schedule[dISO][key] = empId || null;
+  saveState(); renderWeek(); renderStats();
+}
+
+/* --------- Estatísticas --------- */
+function renderStats(){
+  const thead=document.querySelector('#statsTable thead'), tbody=document.querySelector('#statsTable tbody');
+  const cols = [...state.sections, {id:'tarde',name:'Tarde'}];
+  thead.innerHTML = '<tr><th>Funcionário</th>'+cols.map(c=>`<th class="center">${escapeHtml(c.name)}</th>`).join('')+'<th class="center">Total</th></tr>';
+  const counts = {};
+  state.employees.forEach(e=> counts[e.id] = {total:0});
+  Object.values(state.schedule).forEach(day=>{
+    cols.forEach(c=>{
+      const empId = day[c.id];
+      if(!empId) return;
+      if(!counts[empId]) counts[empId]={total:0};
+      counts[empId][c.id] = (counts[empId][c.id]||0)+1;
+      counts[empId].total++;
+    });
+  });
+  tbody.innerHTML = state.employees.map(e=>{
+    const c = counts[e.id]||{total:0};
+    return `<tr><td>${escapeHtml(e.name)}</td>`+
+      cols.map(col=>`<td class="center">${c[col.id]||0}</td>`).join('')+
+      `<td class="center" style="font-weight:700">${c.total}</td></tr>`;
+  }).join('');
+}
+
+/* --------- Funcionários --------- */
+function renderEmployees(){
+  const tb = document.querySelector('#empTable tbody');
+  const headRow = document.getElementById('empHeadRow');
+  headRow.innerHTML = `<th>Nome</th><th class="center">Ativo</th>`+
+    state.sections.map(s=>`<th class="center" title="${escapeHtml(s.name)}">${abbrev(s.name)}</th>`).join('')+
+    `<th class="center">Tarde</th><th>Notas</th><th></th>`;
+  tb.innerHTML = state.employees.map(e=>{
+    const cb=(key)=>`<input type="checkbox" data-emp="${e.id}" data-elig="${key}" ${e.eligibility[key]!==false?'checked':''}
+      onchange="toggleEligibility('${e.id}','${key}',this.checked)"/>`;
+    return `<tr>
+      <td><input type="text" value="${escapeHtml(e.name)}" onchange="updateEmp('${e.id}','name',this.value)" style="width:120px"/></td>
+      <td class="center"><input type="checkbox" ${e.active?'checked':''} onchange="updateEmp('${e.id}','active',this.checked)"/></td>
+      ${state.sections.map(s=>`<td class="center">${cb(s.id)}</td>`).join('')}
+      <td class="center">${cb('tarde')}</td>
+      <td><input type="text" value="${escapeHtml(e.notes||'')}" onchange="updateEmp('${e.id}','notes',this.value)" style="width:110px"/></td>
+      <td><button class="btn danger xsmall" onclick="removeEmployee('${e.id}')">Remover</button></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('empCount').textContent = state.employees.length;
+  refreshEmployeeSelects();
+}
+function abbrev(name){
+  const words = name.split(/[\s\/]+/).filter(Boolean);
+  return words.map(w=>w[0]).join('').toUpperCase().slice(0,4);
+}
+function toggleEligibility(empId,key,checked){
+  const e = state.employees.find(e=>e.id===empId); if(!e) return;
+  e.eligibility[key] = checked;
+  saveState();
+}
+function updateEmp(empId,field,value){
+  const e = state.employees.find(e=>e.id===empId); if(!e) return;
+  e[field] = value; saveState(); if(field==='name') refreshEmployeeSelects();
+}
+function addEmployee(){
+  const id = 'e_'+Math.random().toString(36).slice(2);
+  const elig = {tarde:true}; state.sections.forEach(s=> elig[s.id]=true);
+  state.employees.push({id, name:'Novo funcionário', active:true, eligibility:elig, notes:''});
+  saveState(); renderEmployees();
+}
+function removeEmployee(empId){
+  if(!confirm('Remover este funcionário? Atribuições existentes na escala não serão apagadas retroativamente.')) return;
+  state.employees = state.employees.filter(e=>e.id!==empId);
+  saveState(); renderEmployees();
+}
+
+/* --------- Secções --------- */
+function renderSections(){
+  const tb = document.querySelector('#sectionTable tbody');
+  tb.innerHTML = state.sections.map((s,i)=>`<tr>
+    <td>${i+1}</td>
+    <td><input type="text" value="${escapeHtml(s.name)}" onchange="updateSection('${s.id}',this.value)" style="width:280px"/></td>
+    <td>
+      <button class="btn secondary xsmall" onclick="moveSection('${s.id}',-1)">▲</button>
+      <button class="btn secondary xsmall" onclick="moveSection('${s.id}',1)">▼</button>
+      <button class="btn danger xsmall" onclick="removeSection('${s.id}')">Remover</button>
+    </td></tr>`).join('');
+}
+function updateSection(id,name){
+  const s=state.sections.find(s=>s.id===id); if(!s) return;
+  s.name=name; saveState(); renderSections(); renderEmployees(); renderWeek(); renderStats();
+}
+function addSection(){
+  const input = document.getElementById('newSectionName');
+  const name = input.value.trim();
+  if(!name) return;
+  const id = 's_'+Math.random().toString(36).slice(2);
+  state.sections.push({id,name});
+  state.employees.forEach(e=> e.eligibility[id]=true);
+  input.value='';
+  saveState(); renderSections(); renderEmployees(); renderWeek(); renderStats();
+}
+function removeSection(id){
+  if(!confirm('Remover esta secção?')) return;
+  state.sections = state.sections.filter(s=>s.id!==id);
+  saveState(); renderSections(); renderEmployees(); renderWeek(); renderStats();
+}
+function moveSection(id,dir){
+  const i = state.sections.findIndex(s=>s.id===id);
+  const j = i+dir;
+  if(j<0||j>=state.sections.length) return;
+  [state.sections[i],state.sections[j]] = [state.sections[j],state.sections[i]];
+  saveState(); renderSections(); renderWeek();
+}
+
+/* --------- Indisponibilidades --------- */
+function refreshEmployeeSelects(){
+  const opts = state.employees.map(e=>`<option value="${e.id}">${escapeHtml(e.name)}</option>`).join('');
+  ['erEmp','vacEmp','folgaEmp'].forEach(id=>{
+    const el = document.getElementById(id); if(!el) return;
+    const cur = el.value; el.innerHTML = opts; if(cur) el.value = cur;
+  });
+}
+function addErBusy(){
+  const employeeId = document.getElementById('erEmp').value;
+  const start = document.getElementById('erStart').value;
+  const end = document.getElementById('erEnd').value || start;
+  const note = document.getElementById('erNote').value;
+  if(!employeeId || !start){ flash('Indique funcionário e data de início.','err'); return; }
+  state.erBusy.push({employeeId,start,end,note});
+  document.getElementById('erNote').value='';
+  saveState(); renderErTable(); renderWeek();
+}
+function removeErBusy(i){ state.erBusy.splice(i,1); saveState(); renderErTable(); renderWeek(); }
+function renderErTable(){
+  const tb = document.querySelector('#erTable tbody');
+  tb.innerHTML = state.erBusy.map((er,i)=>{
+    const e = state.employees.find(e=>e.id===er.employeeId);
+    return `<tr><td>${e?escapeHtml(e.name):'?'}</td><td>${er.start}</td><td>${er.end}</td><td>${escapeHtml(er.note||'')}</td>
+      <td><button class="btn danger xsmall" onclick="removeErBusy(${i})">Remover</button></td></tr>`;
+  }).join('');
+}
+function addVacation(){
+  const employeeId = document.getElementById('vacEmp').value;
+  const type = document.getElementById('vacType').value;
+  const start = document.getElementById('vacStart').value;
+  const end = document.getElementById('vacEnd').value || start;
+  const note = document.getElementById('vacNote').value;
+  if(!employeeId || !start){ flash('Indique funcionário e data de início.','err'); return; }
+  state.vacations.push({employeeId,type,start,end,note});
+  document.getElementById('vacNote').value='';
+  saveState(); renderVacTable(); renderWeek();
+}
+function removeVacation(i){ state.vacations.splice(i,1); saveState(); renderVacTable(); renderWeek(); }
+function renderVacTable(){
+  const tb = document.querySelector('#vacTable tbody');
+  tb.innerHTML = state.vacations.map((v,i)=>{
+    const e = state.employees.find(e=>e.id===v.employeeId);
+    return `<tr><td>${e?escapeHtml(e.name):'?'}</td><td>${vacTypeAbbr(v.type)}</td><td>${v.start}</td><td>${v.end}</td><td>${escapeHtml(v.note||'')}</td>
+      <td><button class="btn danger xsmall" onclick="removeVacation(${i})">Remover</button></td></tr>`;
+  }).join('');
+}
+function addFolga(){
+  const employeeId = document.getElementById('folgaEmp').value;
+  const date = document.getElementById('folgaDate').value;
+  const note = document.getElementById('folgaNote').value;
+  if(!employeeId || !date){ flash('Indique funcionário e data.','err'); return; }
+  state.folgas.push({employeeId,date,note});
+  document.getElementById('folgaNote').value='';
+  saveState(); renderFolgaTable(); renderWeek();
+}
+function removeFolga(i){ state.folgas.splice(i,1); saveState(); renderFolgaTable(); renderWeek(); }
+function renderFolgaTable(){
+  const tb = document.querySelector('#folgaTable tbody');
+  tb.innerHTML = state.folgas.map((f,i)=>{
+    const e = state.employees.find(e=>e.id===f.employeeId);
+    return `<tr><td>${e?escapeHtml(e.name):'?'}</td><td>${f.date}</td><td>${escapeHtml(f.note||'')}</td>
+      <td><button class="btn danger xsmall" onclick="removeFolga(${i})">Remover</button></td></tr>`;
+  }).join('');
+}
+
+/* --------- Feriados --------- */
+function renderHolidays(){
+  const tbF = document.querySelector('#holFixedTable tbody');
+  tbF.innerHTML = state.holidaysFixed.map((h,i)=>`<tr>
+    <td>${String(h.mm).padStart(2,'0')}-${String(h.dd).padStart(2,'0')}</td>
+    <td>${escapeHtml(h.name)}</td>
+    <td class="center"><input type="checkbox" ${h.active?'checked':''} onchange="toggleHolidayFixed(${i},this.checked)"/></td>
+    <td></td></tr>`).join('');
+  const tbC = document.querySelector('#holCustomTable tbody');
+  tbC.innerHTML = state.holidaysCustom.map((h,i)=>`<tr>
+    <td>${h.date}</td><td>${escapeHtml(h.name)}</td>
+    <td><button class="btn danger xsmall" onclick="removeCustomHoliday(${i})">Remover</button></td></tr>`).join('');
+}
+function toggleHolidayFixed(i,checked){ state.holidaysFixed[i].active=checked; saveState(); renderWeek(); }
+function addCustomHoliday(){
+  const date=document.getElementById('holDate').value;
+  const name=document.getElementById('holName').value.trim();
+  if(!date||!name){ flash('Indique data e nome.','err'); return; }
+  state.holidaysCustom.push({date,name});
+  document.getElementById('holName').value='';
+  saveState(); renderHolidays(); renderWeek();
+}
+function removeCustomHoliday(i){ state.holidaysCustom.splice(i,1); saveState(); renderHolidays(); renderWeek(); }
+
+/* --------- Importar / Exportar --------- */
+function exportJSON(){
+  const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download=`escala-micro-${iso(new Date())}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function importJSON(evt){
+  const file = evt.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const parsed = JSON.parse(reader.result);
+      state = migrateState(parsed);
+      saveState(); renderAll();
+      flash('Dados importados com sucesso.','ok');
+    }catch(e){ flash('Ficheiro inválido: '+e.message,'err'); }
+  };
+  reader.readAsText(file);
+  evt.target.value='';
+}
+function confirmReset(){ document.getElementById('resetConfirmBox').style.display='block'; }
+function cancelReset(){ document.getElementById('resetConfirmBox').style.display='none'; }
+function doReset(){
+  localStorage.removeItem(LS_KEY);
+  state = defaultState();
+  saveState(); renderAll();
+  document.getElementById('resetConfirmBox').style.display='none';
+  flash('Configuração reposta.','ok');
+}
+
+/* --------- Navegação por separadores --------- */
+document.getElementById('nav').addEventListener('click', e=>{
+  const btn = e.target.closest('button[data-tab]'); if(!btn) return;
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+});
+
+/* --------- Arranque --------- */
+function renderAll(){
+  document.getElementById('rangeStart').value = state.range.start;
+  document.getElementById('rangeEnd').value = state.range.end;
+  document.getElementById('fairWindow').value = String(state.settings.fairWindow);
+  document.getElementById('includeWeekends').checked = state.settings.includeWeekends;
+  renderEmployees();
+  renderSections();
+  renderErTable();
+  renderVacTable();
+  renderFolgaTable();
+  renderHolidays();
+  renderWeek();
+  renderStats();
+}
+renderAll();
+</script>
+</body>
+</html>
