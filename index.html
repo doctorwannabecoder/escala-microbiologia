@@ -76,6 +76,8 @@
   #schedTable td.track-row{background:#0f1a24;color:var(--muted);font-size:12px}
   #schedTable td.empty-warn{background:#3a0e0e;color:#fecaca}
   #schedTable td.closed-row{background:#0b1220;color:var(--muted);text-align:center}
+  #schedTable tr.opportunistic-row th, #schedTable tr.opportunistic-row td{background:#141b2e}
+  #schedTable td.optional-empty{color:var(--muted)}
   .cell-pick{width:100%;background:transparent;border:1px solid transparent;color:inherit;font-weight:700;
     border-radius:5px;padding:3px 4px;font-size:13px}
   .cell-pick:hover{border-color:var(--line)}
@@ -122,13 +124,6 @@
             <option value="28">28 dias</option>
           </select>
         </label>
-        <label>Janela de equidade (substituições)
-          <select id="fairWindow">
-            <option value="10">10 dias úteis</option>
-            <option value="14" selected>14 dias úteis (2 semanas)</option>
-            <option value="20">20 dias úteis</option>
-          </select>
-        </label>
         <label style="flex-direction:row;align-items:center;gap:6px">
           <input type="checkbox" id="includeWeekends"/> <span style="color:var(--text);font-size:13px">Incluir fins-de-semana</span>
         </label>
@@ -139,11 +134,19 @@
     </div>
 
     <div class="card">
-      <h2>Escala semanal</h2>
+      <h2>Escala</h2>
       <div class="weekNav">
-        <button class="btn secondary" onclick="changeWeek(-1)">◀ Semana anterior</button>
-        <span id="weekLabel" style="font-weight:600"></span>
-        <button class="btn secondary" onclick="changeWeek(1)">Próxima semana ▶</button>
+        <button class="btn secondary" onclick="changePeriod(-1)">◀ Anterior</button>
+        <span id="periodLabel" style="font-weight:600"></span>
+        <button class="btn secondary" onclick="changePeriod(1)">Seguinte ▶</button>
+        <span style="flex:1"></span>
+        <label style="flex-direction:row;align-items:center;gap:6px">
+          <span style="color:var(--muted);font-size:12px">Ver</span>
+          <select id="viewMode" onchange="setViewMode(this.value)">
+            <option value="biweekly">Quinzena (2 semanas)</option>
+            <option value="month">Mês</option>
+          </select>
+        </label>
       </div>
       <div style="overflow-x:auto">
         <table id="schedTable"><thead></thead><tbody></tbody></table>
@@ -181,7 +184,7 @@
         <button class="btn" onclick="addSection()">+ Adicionar secção</button>
       </div>
       <table id="sectionTable">
-        <thead><tr><th>#</th><th>Secção</th><th></th></tr></thead>
+        <thead><tr><th>#</th><th>Secção</th><th>Duração da área</th><th class="center" title="Sem dono fixo — só atribuída se sobrar alguém elegível e disponível no dia, sem gerar aviso se ficar vazia">Oportunista</th><th></th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -191,9 +194,11 @@
   <section id="tab-fds" class="tab">
     <div class="card">
       <h2>Regras de fim-de-semana</h2>
-      <p class="small">Ao fim-de-semana trabalham apenas 2 pessoas: uma faz exclusivamente a secção TSA, a outra
-        cobre sozinha todas as restantes secções marcadas como "abertas ao fim-de-semana" abaixo. As secções não
-        marcadas ficam fechadas e não aparecem para preenchimento aos sábados/domingos.</p>
+      <p class="small">Ao fim-de-semana trabalham apenas 2 pessoas: uma faz exclusivamente a secção TSA
+        (antibiograma — feito por um elemento sénior, tal como acontece durante a semana), a outra cobre sozinha
+        todas as restantes secções marcadas como "abertas ao fim-de-semana" abaixo. As secções não marcadas ficam
+        fechadas e não aparecem para preenchimento aos sábados/domingos. Use a coluna de elegibilidade "TSA" em
+        Funcionários para restringir esta secção só aos sénior.</p>
       <div class="row" style="margin-bottom:14px">
         <label>Secção TSA (pessoa 1 — só esta)
           <select id="tsaSectionSel" onchange="setTsaSection(this.value)"></select>
@@ -340,6 +345,7 @@
    ========================================================================= */
 
 const LS_KEY = 'escala_micro_v1';
+const SUBST_FAIRNESS_WINDOW_DAYS = 14; // janela de recência usada para variedade em substituições/Tarde/TSA
 
 const PT_HOLIDAYS_FIXED = [
   {mm:1, dd:1,  name:'Ano Novo',                    active:true},
@@ -354,21 +360,23 @@ const PT_HOLIDAYS_FIXED = [
   {mm:12,dd:25, name:'Natal',                       active:true}
 ];
 
+// blockDays: nulo = usa a duração de bloco global; opportunistic: sem dono fixo, só
+// atribuída quando sobra alguém elegível e disponível nesse dia (sem gerar aviso se vazia).
 const DEFAULT_SECTIONS = [
-  'Hemoculturas',
-  'Exsud. purulentos / Protoc. / Queimados',
-  'Anaeróbios / Micologia',
-  'Inf. Respiratórias (incl. Faríng/nasais)',
-  'Urinas',
-  'Exs. Vaginais / Uretrais',
-  'Coproculturas',
-  'Ex. Parasitológicos',
-  'Colonizações',
-  'Informações',
-  'Micobactérias',
-  'Serologia',
-  'TSA'
-].map((name,i)=>({id:'s_'+(i+1), name}));
+  {name:'Hemoculturas'},
+  {name:'Exsud. purulentos / Protoc. / Queimados'},
+  {name:'Anaeróbios / Micologia', blockDays:7},
+  {name:'Inf. Respiratórias'},
+  {name:'Urinas'},
+  {name:'Exs. Vaginais / Uretrais'},
+  {name:'Coproculturas'},
+  {name:'Ex. Parasitológicos', blockDays:7},
+  {name:'Colonizações'},
+  {name:'Informações'},
+  {name:'Micobactérias', opportunistic:true},
+  {name:'Serologia', opportunistic:true},
+  {name:'TSA'}
+].map((s,i)=>({id:'s_'+(i+1), name:s.name, opportunistic:s.opportunistic||false, blockDays:s.blockDays||null}));
 
 function defaultState(){
   return {
@@ -383,11 +391,11 @@ function defaultState(){
     erBusy:[],
     holidaysFixed: JSON.parse(JSON.stringify(PT_HOLIDAYS_FIXED)),
     holidaysCustom:[],
-    settings:{ fairWindow:14, blockLengthDays:14, includeWeekends:false },
+    settings:{ blockLengthDays:14, includeWeekends:false, viewMode:'biweekly' },
     weekend:{ tsaSectionId: DEFAULT_SECTIONS.find(s=>s.name==='TSA').id, openSectionIds: DEFAULT_SECTIONS.map(s=>s.id) },
     schedule:{},   // {date:{sectionId:employeeId|null|'CLOSED', tarde:employeeId, _subst:{sectionId:true}}}
     range:{start:firstOfThisMonthISO(), end:lastOfThisMonthISO()},
-    weekCursor: mondayOfISO(iso(new Date()))
+    periodCursor: mondayOfISO(iso(new Date()))
   };
 }
 function emp(id,name){
@@ -413,7 +421,8 @@ function migrateState(parsed){
   const def = defaultState();
   const merged = Object.assign(def, parsed||{});
   merged.settings = Object.assign({}, def.settings, parsed.settings||{});
-  merged.sections = (parsed.sections && parsed.sections.length) ? parsed.sections : def.sections;
+  merged.sections = ((parsed.sections && parsed.sections.length) ? parsed.sections : def.sections)
+    .map(s=>Object.assign({opportunistic:false, blockDays:null}, s));
   merged.weekend = Object.assign({}, def.weekend, parsed.weekend||{});
   if(!merged.sections.some(s=>s.id===merged.weekend.tsaSectionId)) merged.weekend.tsaSectionId = merged.sections[0] ? merged.sections[0].id : null;
   merged.weekend.openSectionIds = (merged.weekend.openSectionIds||[]).filter(id=>merged.sections.some(s=>s.id===id));
@@ -430,7 +439,7 @@ function migrateState(parsed){
   merged.range = parsed.range || def.range;
   if(!merged.range.start) merged.range.start = def.range.start;
   if(!merged.range.end) merged.range.end = def.range.end;
-  merged.weekCursor = parsed.weekCursor || mondayOfISO(merged.range.start);
+  merged.periodCursor = parsed.periodCursor || parsed.weekCursor || mondayOfISO(merged.range.start);
   return merged;
 }
 function saveState(){ localStorage.setItem(LS_KEY, JSON.stringify(state)); }
@@ -499,7 +508,6 @@ function generateSchedule(){
 function _runGeneration(alerts){
   state.range.start = document.getElementById('rangeStart').value;
   state.range.end   = document.getElementById('rangeEnd').value;
-  state.settings.fairWindow = parseInt(document.getElementById('fairWindow').value,10);
   state.settings.blockLengthDays = parseInt(document.getElementById('blockLengthDays').value,10);
   state.settings.includeWeekends = document.getElementById('includeWeekends').checked;
   if(!state.range.start || !state.range.end) throw new Error('Indique a data de início e fim.');
@@ -527,58 +535,75 @@ function _runGeneration(alerts){
 
   state.schedule = {};
 
-  // --- Blocos de dias úteis: dentro de cada bloco, cada secção fica com o mesmo "dono" ---
+  // --- Cada secção fixa (não oportunista) tem o seu próprio ciclo de "dono": a mesma
+  // pessoa mantém-se na área durante a duração configurada (global ou específica da secção).
   const weekdayDates = enumerateWorkDates(state.range.start, state.range.end, false);
-  const blocks = chunkIntoBlocks(weekdayDates, state.settings.blockLengthDays);
-  blocks.forEach(blockDates=>{
-    const ownerMap = assignOwners(blockDates, activeEmps, ownerTotalCount, ownerSectionHistory);
-    blockDates.forEach(date=>{
-      const daySchedule = {};
-      const todayLoad = {};
-      const availableToday = activeEmps.filter(e=>isAvailable(e.id,date));
-      if(!availableToday.length){
-        issues.push({type:'err', msg:`${formatPT(date)}: ninguém do laboratório está disponível (todos em SU/férias/folga).`});
+  const fixedSections = state.sections.filter(s=>!s.opportunistic);
+  const opportunisticSections = state.sections.filter(s=>s.opportunistic);
+  const ownerMapsBySection = {}; // sectionId -> {date: empId|null}
+  fixedSections.forEach(section=>{
+    ownerMapsBySection[section.id] = buildOwnerMapForSection(section, weekdayDates, activeEmps, ownerTotalCount, ownerSectionHistory);
+  });
+
+  weekdayDates.forEach(date=>{
+    const daySchedule = {};
+    const todayLoad = {};
+    const availableToday = activeEmps.filter(e=>isAvailable(e.id,date));
+    if(!availableToday.length){
+      issues.push({type:'err', msg:`${formatPT(date)}: ninguém do laboratório está disponível (todos em SU/férias/folga).`});
+    }
+    for(const section of fixedSections){
+      const ownerId = ownerMapsBySection[section.id][date];
+      const owner = ownerId ? state.employees.find(e=>e.id===ownerId) : null;
+      if(owner && isAvailable(owner.id,date)){
+        daySchedule[section.id] = owner.id;
+        todayLoad[owner.id] = (todayLoad[owner.id]||0)+1;
+        totalCount[owner.id] = (totalCount[owner.id]||0)+1;
+        (history[section.id][owner.id] = history[section.id][owner.id]||[]).push(date);
+        continue;
       }
-      for(const section of state.sections){
-        const ownerId = ownerMap[section.id];
-        const owner = ownerId ? state.employees.find(e=>e.id===ownerId) : null;
-        if(owner && isAvailable(owner.id,date)){
-          daySchedule[section.id] = owner.id;
-          todayLoad[owner.id] = (todayLoad[owner.id]||0)+1;
-          totalCount[owner.id] = (totalCount[owner.id]||0)+1;
-          (history[section.id][owner.id] = history[section.id][owner.id]||[]).push(date);
-          continue;
-        }
-        // titular indisponível hoje (ou secção sem dono elegível) — procurar substituto
-        const eligible = availableToday.filter(e=> e.eligibility[section.id]!==false);
-        if(!eligible.length){
-          issues.push({type:'err', msg:`${formatPT(date)}: não há ninguém disponível/elegível para "${section.name}".`});
-          daySchedule[section.id] = null;
-          continue;
-        }
-        eligible.sort((a,b)=> scoreCandidate(a,section.id,date,history,totalCount,todayLoad) - scoreCandidate(b,section.id,date,history,totalCount,todayLoad));
-        const chosen = eligible[0];
-        daySchedule[section.id] = chosen.id;
-        todayLoad[chosen.id] = (todayLoad[chosen.id]||0)+1;
-        totalCount[chosen.id] = (totalCount[chosen.id]||0)+1;
-        (history[section.id][chosen.id] = history[section.id][chosen.id]||[]).push(date);
-        if(!daySchedule._subst) daySchedule._subst = {};
-        daySchedule._subst[section.id] = true;
-        if(owner) issues.push({type:'warn', msg:`${formatPT(date)}: ${owner.name} (titular de "${section.name}") indisponível — ${chosen.name} substituiu.`});
+      // titular indisponível hoje (ou secção sem dono elegível) — procurar substituto
+      const eligible = availableToday.filter(e=> e.eligibility[section.id]!==false);
+      if(!eligible.length){
+        issues.push({type:'err', msg:`${formatPT(date)}: não há ninguém disponível/elegível para "${section.name}".`});
+        daySchedule[section.id] = null;
+        continue;
       }
-      // Tarde: pessoa extra da tarde — pode coincidir com secção da manhã da mesma pessoa
-      const tardeEligible = availableToday.filter(e=> e.eligibility.tarde!==false);
-      if(tardeEligible.length){
-        tardeEligible.sort((a,b)=> scoreCandidate(a,'tarde',date,history,totalCount,todayLoad) - scoreCandidate(b,'tarde',date,history,totalCount,todayLoad));
-        const chosen = tardeEligible[0];
-        daySchedule.tarde = chosen.id;
-        (history.tarde[chosen.id] = history.tarde[chosen.id]||[]).push(date);
-      } else {
-        issues.push({type:'warn', msg:`${formatPT(date)}: não há ninguém disponível para a Tarde.`});
-        daySchedule.tarde = null;
-      }
-      state.schedule[date] = daySchedule;
-    });
+      eligible.sort((a,b)=> scoreCandidate(a,section.id,date,history,totalCount,todayLoad) - scoreCandidate(b,section.id,date,history,totalCount,todayLoad));
+      const chosen = eligible[0];
+      daySchedule[section.id] = chosen.id;
+      todayLoad[chosen.id] = (todayLoad[chosen.id]||0)+1;
+      totalCount[chosen.id] = (totalCount[chosen.id]||0)+1;
+      (history[section.id][chosen.id] = history[section.id][chosen.id]||[]).push(date);
+      if(!daySchedule._subst) daySchedule._subst = {};
+      daySchedule._subst[section.id] = true;
+      if(owner) issues.push({type:'warn', msg:`${formatPT(date)}: ${owner.name} (titular de "${section.name}") indisponível — ${chosen.name} substituiu.`});
+    }
+
+    // Secções oportunistas (ex.: Serologia, Micobactérias): sem dono fixo — só entram se
+    // sobrar alguém elegível e disponível; ficam em branco sem gerar aviso caso contrário.
+    for(const section of opportunisticSections){
+      const eligible = availableToday.filter(e=> e.eligibility[section.id]!==false);
+      if(!eligible.length){ daySchedule[section.id] = null; continue; }
+      eligible.sort((a,b)=> scoreCandidate(a,section.id,date,history,totalCount,todayLoad) - scoreCandidate(b,section.id,date,history,totalCount,todayLoad));
+      const chosen = eligible[0];
+      daySchedule[section.id] = chosen.id;
+      todayLoad[chosen.id] = (todayLoad[chosen.id]||0)+1;
+      (history[section.id][chosen.id] = history[section.id][chosen.id]||[]).push(date);
+    }
+
+    // Tarde: pessoa extra da tarde — pode coincidir com secção da manhã da mesma pessoa
+    const tardeEligible = availableToday.filter(e=> e.eligibility.tarde!==false);
+    if(tardeEligible.length){
+      tardeEligible.sort((a,b)=> scoreCandidate(a,'tarde',date,history,totalCount,todayLoad) - scoreCandidate(b,'tarde',date,history,totalCount,todayLoad));
+      const chosen = tardeEligible[0];
+      daySchedule.tarde = chosen.id;
+      (history.tarde[chosen.id] = history.tarde[chosen.id]||[]).push(date);
+    } else {
+      issues.push({type:'warn', msg:`${formatPT(date)}: não há ninguém disponível para a Tarde.`});
+      daySchedule.tarde = null;
+    }
+    state.schedule[date] = daySchedule;
   });
 
   // --- Fins-de-semana: só 2 pessoas — TSA sozinho, e "resto" cobre as outras secções abertas ---
@@ -626,17 +651,18 @@ function _runGeneration(alerts){
 
   saveState();
   renderAlerts(issues);
-  state.weekCursor = mondayOfISO(state.range.start);
-  renderWeek();
+  state.periodCursor = state.settings.viewMode==='month' ? isoFirstOfMonth(state.range.start) : mondayOfISO(state.range.start);
+  renderPeriod();
   renderStats();
 
   const errCount = issues.filter(i=>i.type==='err').length;
   const diag = document.createElement('div');
   diag.className = 'alert ' + (errCount===0 ? 'ok' : 'warn');
-  diag.innerHTML = `📊 <strong>Geração concluída.</strong> Blocos: ${blocks.length} · Secções: ${state.sections.length} · `+
+  diag.innerHTML = `📊 <strong>Geração concluída.</strong> Dias úteis: ${weekdayDates.length} · Secções: ${state.sections.length} · `+
     `Lugares por preencher com problemas: ${errCount}`;
   alerts.appendChild(diag);
 }
+function isoFirstOfMonth(dISO){ const d=parseISO(dISO); return iso(new Date(d.getFullYear(),d.getMonth(),1)); }
 
 // Divide as datas úteis em blocos consecutivos de N dias corridos (a partir da 1ª data),
 // para que a mesma secção fique com o mesmo "dono" durante todo o bloco.
@@ -660,38 +686,35 @@ function chunkIntoBlocks(weekdayDates, blockLengthDays){
   return blocks;
 }
 
-// Escolhe, para cada secção, um "dono" fixo para o bloco inteiro — a mesma pessoa mantém-se
-// na mesma área o bloco todo sempre que possível (só se afasta por indisponibilidade pontual,
-// tratada depois dia a dia como substituição). Ignora quem está ausente o bloco inteiro.
-function assignOwners(blockDates, activeEmps, ownerTotalCount, ownerSectionHistory){
-  const load = {}; // empId -> nº de secções já "possuídas" neste bloco
-  const ownerMap = {};
-  const sectionsSorted = [...state.sections].sort((a,b)=>{
-    const ea = activeEmps.filter(e=>e.eligibility[a.id]!==false && blockDates.some(d=>isAvailable(e.id,d))).length;
-    const eb = activeEmps.filter(e=>e.eligibility[b.id]!==false && blockDates.some(d=>isAvailable(e.id,d))).length;
-    return ea-eb; // secções com menos candidatos são atribuídas primeiro
-  });
-  sectionsSorted.forEach(section=>{
+// Para UMA secção, escolhe um "dono" fixo por cada bloco do seu próprio ciclo (7/14/21/28
+// dias, ou o bloco global se não tiver duração própria) — a mesma pessoa mantém-se na área
+// durante o bloco todo sempre que possível. Devolve {date: empId|null} para todas as datas.
+function buildOwnerMapForSection(section, weekdayDates, activeEmps, ownerTotalCount, ownerSectionHistory){
+  const blockLen = section.blockDays || state.settings.blockLengthDays;
+  const blocks = chunkIntoBlocks(weekdayDates, blockLen);
+  const map = {};
+  blocks.forEach(blockDates=>{
     const eligible = activeEmps.filter(e=> e.eligibility[section.id]!==false && blockDates.some(d=>isAvailable(e.id,d)));
-    if(!eligible.length){ ownerMap[section.id]=null; return; }
-    eligible.sort((a,b)=>{
-      const sa=(load[a.id]||0)*1000 + (ownerSectionHistory[section.id][a.id]||0)*100 + (ownerTotalCount[a.id]||0)*10 + (Math.abs(hashString(a.id+'|'+section.id))%7);
-      const sb=(load[b.id]||0)*1000 + (ownerSectionHistory[section.id][b.id]||0)*100 + (ownerTotalCount[b.id]||0)*10 + (Math.abs(hashString(b.id+'|'+section.id))%7);
-      return sa-sb;
-    });
-    const chosen = eligible[0];
-    ownerMap[section.id] = chosen.id;
-    load[chosen.id] = (load[chosen.id]||0)+1;
-    ownerTotalCount[chosen.id] = (ownerTotalCount[chosen.id]||0)+1;
-    ownerSectionHistory[section.id][chosen.id] = (ownerSectionHistory[section.id][chosen.id]||0)+1;
+    let chosen = null;
+    if(eligible.length){
+      eligible.sort((a,b)=>{
+        const sa=(ownerSectionHistory[section.id][a.id]||0)*100 + (ownerTotalCount[a.id]||0)*10 + (Math.abs(hashString(a.id+'|'+section.id))%7);
+        const sb=(ownerSectionHistory[section.id][b.id]||0)*100 + (ownerTotalCount[b.id]||0)*10 + (Math.abs(hashString(b.id+'|'+section.id))%7);
+        return sa-sb;
+      });
+      chosen = eligible[0];
+      ownerTotalCount[chosen.id] = (ownerTotalCount[chosen.id]||0)+1;
+      ownerSectionHistory[section.id][chosen.id] = (ownerSectionHistory[section.id][chosen.id]||0)+1;
+    }
+    blockDates.forEach(d=> map[d] = chosen ? chosen.id : null);
   });
-  return ownerMap;
+  return map;
 }
 
-// Menor pontuação = melhor candidato (usado para substituições, Tarde, TSA e "resto" de fim-de-semana).
+// Menor pontuação = melhor candidato (usado para substituições, secções oportunistas, Tarde,
+// TSA e "resto" de fim-de-semana).
 function scoreCandidate(emp, sectionId, date, history, totalCount, todayLoad){
-  const windowDays = state.settings.fairWindow;
-  const cutoff = addDays(parseISO(date), -windowDays);
+  const cutoff = addDays(parseISO(date), -SUBST_FAIRNESS_WINDOW_DAYS);
   const hist = (history[sectionId] && history[sectionId][emp.id]) || [];
   const recentSameSection = hist.filter(d=>parseISO(d)>=cutoff).length;
   let score = (todayLoad[emp.id]||0)*10000;
@@ -750,21 +773,44 @@ function escapeHtml(s){ const d=document.createElement('div'); d.textContent=s; 
 /* =========================================================================
    RENDERIZAÇÃO — vista semanal (imita a folha em papel)
    ========================================================================= */
-function changeWeek(delta){
-  state.weekCursor = iso(addDays(parseISO(state.weekCursor), delta*7));
-  saveState(); renderWeek();
+function setViewMode(mode){
+  // usa uma data a meio do período atual como âncora, para não saltar de mês ao
+  // converter (a segunda-feira da quinzena pode cair no mês anterior)
+  const anchorDates = periodDates();
+  const anchor = anchorDates[Math.floor(anchorDates.length/2)] || state.periodCursor;
+  state.settings.viewMode = mode;
+  state.periodCursor = mode==='month' ? isoFirstOfMonth(anchor) : mondayOfISO(anchor);
+  saveState(); renderPeriod();
 }
-function weekDates(mondayISO){
-  const days = state.settings.includeWeekends ? 7 : 5;
-  const out=[]; for(let i=0;i<days;i++) out.push(iso(addDays(parseISO(mondayISO),i)));
+function changePeriod(delta){
+  if(state.settings.viewMode==='month'){
+    const d = parseISO(state.periodCursor);
+    state.periodCursor = iso(new Date(d.getFullYear(), d.getMonth()+delta, 1));
+  } else {
+    state.periodCursor = iso(addDays(parseISO(state.periodCursor), delta*14));
+  }
+  saveState(); renderPeriod();
+}
+function changeWeek(delta){ changePeriod(delta); } // alias retrocompatível
+function periodDates(){
+  const cursor = state.periodCursor || mondayOfISO(iso(new Date()));
+  if(state.settings.viewMode==='month'){
+    const d = parseISO(cursor);
+    const first = new Date(d.getFullYear(), d.getMonth(), 1);
+    const last = new Date(d.getFullYear(), d.getMonth()+1, 0);
+    const out=[]; let cur=first; while(cur<=last){ out.push(iso(cur)); cur=addDays(cur,1); }
+    return out;
+  }
+  const out=[]; for(let i=0;i<14;i++) out.push(iso(addDays(parseISO(cursor),i)));
   return out;
 }
-function renderWeek(){
-  const monday = state.weekCursor || mondayOfISO(iso(new Date()));
-  const dates = weekDates(monday);
-  const sunday = dates[dates.length-1];
-  document.getElementById('weekLabel').textContent =
-    `${formatPT(dates[0])} — ${formatPT(sunday)}`;
+function renderWeek(){ renderPeriod(); } // alias retrocompatível
+function renderPeriod(){
+  const dates = periodDates();
+  const last = dates[dates.length-1];
+  document.getElementById('periodLabel').textContent =
+    `${formatPT(dates[0])} — ${formatPT(last)}`;
+  document.getElementById('viewMode').value = state.settings.viewMode;
   document.getElementById('rangeBadge').textContent =
     state.range.start ? `${state.range.start} → ${state.range.end}` : '—';
 
@@ -780,9 +826,10 @@ function renderWeek(){
 
   let html='';
   state.sections.forEach(section=>{
-    html += `<tr><th class="sectionCol">${escapeHtml(section.name)}</th>`;
+    const rowCls = section.opportunistic ? ' class="opportunistic-row"' : '';
+    html += `<tr${rowCls}><th class="sectionCol">${escapeHtml(section.name)}${section.opportunistic?' <span class="badge" title="Sem dono fixo — só atribuída se houver alguém livre">oport.</span>':''}</th>`;
     dates.forEach(dISO=>{
-      html += renderCell(dISO, section.id, isWeekend(dISO));
+      html += renderCell(dISO, section.id, isWeekend(dISO), '', section.opportunistic);
     });
     html += '</tr>';
   });
@@ -815,7 +862,7 @@ function vacTypeAbbr(t){ return {ferias:'F',banco:'B',cs:'CS',baixa:'S',outro:'O
 function initials(name){
   return name.trim().split(/\s+/).map(p=>p[0]).join('').toUpperCase();
 }
-function renderCell(dISO, key, weekend, extraClass=''){
+function renderCell(dISO, key, weekend, extraClass='', optional=false){
   const day = state.schedule[dISO];
   const empId = day ? day[key] : undefined;
   const closed = day && day[key]==='CLOSED';
@@ -829,7 +876,8 @@ function renderCell(dISO, key, weekend, extraClass=''){
   const opts = state.employees.filter(e=>e.active).map(e=>
     `<option value="${e.id}" ${e.id===empId?'selected':''}>${escapeHtml(e.name)}</option>`).join('');
   const substTag = isSubst ? ' <span class="badge" title="Substituição — titular indisponível">subst.</span>' : '';
-  return `<td class="${cls} ${extraClass} ${empty?'empty-warn':''} ${emp?'assigned':''}">`+
+  const emptyCls = empty ? (optional ? 'optional-empty' : 'empty-warn') : '';
+  return `<td class="${cls} ${extraClass} ${emptyCls} ${emp?'assigned':''}">`+
     `<select class="cell-pick" onchange="manualAssign('${dISO}','${key}',this.value)">`+
     `<option value="">—</option>${opts}</select>${substTag}</td>`;
 }
@@ -914,14 +962,29 @@ function removeEmployee(empId){
 /* --------- Secções --------- */
 function renderSections(){
   const tb = document.querySelector('#sectionTable tbody');
+  const blockOpts = [['','Usar global (bloco de '+state.settings.blockLengthDays+' dias)'],['7','7 dias (semanal)'],['14','14 dias'],['21','21 dias'],['28','28 dias']];
   tb.innerHTML = state.sections.map((s,i)=>`<tr>
     <td>${i+1}</td>
     <td><input type="text" value="${escapeHtml(s.name)}" onchange="updateSection('${s.id}',this.value)" style="width:280px"/></td>
+    <td><select onchange="setSectionBlockDays('${s.id}',this.value)" ${s.opportunistic?'disabled':''}>
+      ${blockOpts.map(([v,label])=>`<option value="${v}" ${String(s.blockDays||'')===v?'selected':''}>${label}</option>`).join('')}
+    </select></td>
+    <td class="center"><input type="checkbox" ${s.opportunistic?'checked':''} onchange="toggleSectionOpportunistic('${s.id}',this.checked)"/></td>
     <td>
       <button class="btn secondary xsmall" onclick="moveSection('${s.id}',-1)">▲</button>
       <button class="btn secondary xsmall" onclick="moveSection('${s.id}',1)">▼</button>
       <button class="btn danger xsmall" onclick="removeSection('${s.id}')">Remover</button>
     </td></tr>`).join('');
+}
+function setSectionBlockDays(id,value){
+  const s=state.sections.find(s=>s.id===id); if(!s) return;
+  s.blockDays = value ? parseInt(value,10) : null;
+  saveState();
+}
+function toggleSectionOpportunistic(id,checked){
+  const s=state.sections.find(s=>s.id===id); if(!s) return;
+  s.opportunistic = checked;
+  saveState(); renderSections();
 }
 function updateSection(id,name){
   const s=state.sections.find(s=>s.id===id); if(!s) return;
@@ -1114,9 +1177,9 @@ document.getElementById('nav').addEventListener('click', e=>{
 function renderAll(){
   document.getElementById('rangeStart').value = state.range.start;
   document.getElementById('rangeEnd').value = state.range.end;
-  document.getElementById('fairWindow').value = String(state.settings.fairWindow);
   document.getElementById('blockLengthDays').value = String(state.settings.blockLengthDays);
   document.getElementById('includeWeekends').checked = state.settings.includeWeekends;
+  document.getElementById('viewMode').value = state.settings.viewMode;
   renderEmployees();
   renderSections();
   renderWeekendConfig();
@@ -1124,7 +1187,7 @@ function renderAll(){
   renderVacTable();
   renderFolgaTable();
   renderHolidays();
-  renderWeek();
+  renderPeriod();
   renderStats();
 }
 renderAll();
