@@ -420,18 +420,17 @@ function migrateState(parsed){
   merged.sections = ((parsed.sections && parsed.sections.length) ? parsed.sections : def.sections)
     .map(s=>Object.assign({opportunistic:false, blockDays:null, code:null, priorityEmployeeIds:[]}, s));
   merged.weekend = Object.assign({}, def.weekend, parsed.weekend||{});
-  // garante que existe uma secção TSA válida (dados antigos podiam não a ter) e que
-  // a secção usada como TSA é sempre oportunista (sem duração de área fixa)
-  if(!merged.sections.some(s=>s.id===merged.weekend.tsaSectionId)){
-    let tsaSection = merged.sections.find(s=>s.name.trim().toUpperCase()==='TSA');
-    if(!tsaSection){
-      tsaSection = {id:'s_'+Math.random().toString(36).slice(2), name:'TSA', opportunistic:true, blockDays:null, code:'TSA', priorityEmployeeIds:[]};
-      merged.sections.push(tsaSection);
-    }
-    merged.weekend.tsaSectionId = tsaSection.id;
+  // garante que existe sempre uma secção TSA genuína (dados antigos podiam não a ter, ou
+  // ter um weekend.tsaSectionId apontado por engano para outra secção qualquer — por isso
+  // procuramos sempre pelo nome/código, em vez de confiar que o id gravado ainda é válido)
+  let tsaSection = merged.sections.find(s=> s.name.trim().toUpperCase()==='TSA' || (s.code||'').toUpperCase()==='TSA');
+  if(!tsaSection){
+    tsaSection = {id:'s_'+Math.random().toString(36).slice(2), name:'TSA', opportunistic:true, blockDays:null, code:'TSA', priorityEmployeeIds:[]};
+    merged.sections.push(tsaSection);
   }
-  const tsaSec = merged.sections.find(s=>s.id===merged.weekend.tsaSectionId);
-  if(tsaSec){ tsaSec.opportunistic = true; tsaSec.blockDays = null; }
+  merged.weekend.tsaSectionId = tsaSection.id;
+  tsaSection.opportunistic = true;
+  tsaSection.blockDays = null;
   merged.weekend.openSectionIds = (merged.weekend.openSectionIds||[]).filter(id=>merged.sections.some(s=>s.id===id));
   merged.employees = (parsed.employees||def.employees).map(e=>Object.assign({
     id:e.id||('e_'+Math.random().toString(36).slice(2)), name:e.name||'Funcionário',
