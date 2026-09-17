@@ -583,7 +583,6 @@ function _runGeneration(alerts){
       (history[section.id][chosen.id] = history[section.id][chosen.id]||[]).push(date);
       if(!daySchedule._subst) daySchedule._subst = {};
       daySchedule._subst[section.id] = true;
-      if(owner) issues.push({type:'warn', msg:`${formatPT(date)}: ${owner.name} (titular de "${section.name}") indisponível — ${chosen.name} substituiu.`});
     }
 
     // Secções oportunistas (ex.: Serologia, Micobactérias): sem dono fixo — só entram se
